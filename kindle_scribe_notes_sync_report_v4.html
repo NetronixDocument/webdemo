@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kindle Scribe 筆記與同步功能報告</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+  :root {
+    --bg:#0f1117;--s1:#1a1d27;--s2:#232733;--s3:#2a2e3d;
+    --bd:#2e3345;--tx:#e2e4eb;--dim:#8b90a0;
+    --blue:#6c8cff;--blue-d:rgba(108,140,255,.12);
+    --cyan:#22d3ee;--cyan-d:rgba(34,211,238,.12);
+    --green:#4ade80;--green-d:rgba(74,222,128,.12);
+    --amber:#fbbf24;--amber-d:rgba(251,191,36,.12);
+    --red:#f87171;--red-d:rgba(248,113,113,.12);
+    --purple:#a78bfa;--purple-d:rgba(167,139,250,.12);
+    --pink:#f472b6;--pink-d:rgba(244,114,182,.12);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Noto Sans TC','Inter',sans-serif;background:var(--bg);color:var(--tx);line-height:1.7;padding:40px 20px}
+  .c{max-width:900px;margin:0 auto}
+  .hdr{text-align:center;margin-bottom:48px;padding-bottom:28px;border-bottom:1px solid var(--bd)}
+  .hdr h1{font-size:26px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+  .hdr .sub{color:var(--dim);font-size:13px}
+  .hdr .meta{display:flex;gap:12px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+  .hdr .chip{background:var(--s1);border:1px solid var(--bd);border-radius:6px;padding:4px 14px;font-size:12px;color:var(--dim)}
+  .hdr .chip b{color:var(--tx)}
+  .sec{margin-bottom:40px}
+  .sec-t{font-size:17px;font-weight:700;margin-bottom:14px;padding-left:12px;border-left:3px solid var(--blue);display:flex;align-items:center;gap:8px}
+  .sec-t .n{background:var(--blue);color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+  .card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:18px 22px;margin-bottom:10px}
+  .card h4{font-size:14px;font-weight:600;margin-bottom:6px}
+  .card p,.card li{font-size:13.5px;color:var(--dim)}
+  .card ul{padding-left:18px}
+  .card li{margin-bottom:3px}
+  .b{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:4px;letter-spacing:.3px;vertical-align:middle;white-space:nowrap}
+  .b-aosp{background:var(--green-d);color:var(--green)}
+  .b-ntx{background:var(--purple-d);color:var(--purple)}
+  .b-anson{background:var(--cyan-d);color:var(--cyan)}
+  .b-new{background:var(--amber-d);color:var(--amber)}
+  .b-mod{background:var(--blue-d);color:var(--blue)}
+  .b-del{background:var(--red-d);color:var(--red)}
+  .tb{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  .tb th{text-align:left;padding:8px 12px;background:var(--s2);color:var(--dim);font-weight:600;border-bottom:1px solid var(--bd)}
+  .tb td{padding:8px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
+  .tb tr:last-child td{border-bottom:none}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:12px}
+  .code{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.85;color:var(--tx);background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;overflow-x:auto;margin-top:8px}
+  .tl{position:relative;padding-left:28px;margin:16px 0}
+  .tl::before{content:'';position:absolute;left:9px;top:4px;bottom:4px;width:2px;background:var(--bd)}
+  .tl-item{position:relative;margin-bottom:14px}
+  .tl-item::before{content:'';position:absolute;left:-22px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--blue);border:2px solid var(--bg)}
+  .tl-item.first::before{background:var(--green)}
+  .tl-item.warn::before{background:var(--amber)}
+  .tl-item.bad::before{background:var(--red)}
+  .tl-item.last::before{background:var(--cyan)}
+  .tl-date{font-size:11px;color:var(--dim);font-family:'JetBrains Mono',monospace}
+  .tl-msg{font-size:13px;margin-top:2px}
+  .arch{display:grid;gap:10px;margin:16px 0}
+  .arch-4{grid-template-columns:1fr 1fr 1fr 1fr}
+  .arch-3{grid-template-columns:1fr 1fr 1fr}
+  .arch-2{grid-template-columns:1fr 1fr}
+  .arch-box{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;text-align:center}
+  .arch-box .lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .arch-box .name{font-size:13px;font-weight:600}
+  .arch-box .desc{font-size:11px;color:var(--dim);margin-top:4px}
+  .arch-box.highlight{border-color:var(--purple);box-shadow:0 0 12px rgba(167,139,250,.1)}
+  .arch-box.highlight2{border-color:var(--cyan);box-shadow:0 0 12px rgba(34,211,238,.1)}
+  .arch-box.good{border-color:var(--green);box-shadow:0 0 12px rgba(74,222,128,.1)}
+  .arch-box.bad{border-color:var(--red);box-shadow:0 0 12px rgba(248,113,113,.1)}
+  .arch-box.warn{border-color:var(--amber);box-shadow:0 0 12px rgba(251,191,36,.1)}
+  .arch-arrow{text-align:center;font-size:18px;color:var(--dim);padding:4px 0}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;padding:10px 16px;background:var(--s1);border-radius:8px;border:1px solid var(--bd)}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+  .legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+  .note{font-size:11px;color:var(--dim);text-align:center;margin-top:24px}
+  a{color:var(--cyan);text-decoration:none}
+  a:hover{text-decoration:underline}
+  strong{color:var(--tx)}
+
+  .video-box{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:14px 16px;margin-top:10px}
+  .video-link{display:inline-flex;align-items:center;gap:8px;background:var(--red-d);color:var(--red);border:1px solid rgba(248,113,113,.35);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600}
+  .video-link:hover{text-decoration:none;filter:brightness(1.08)}
+  @media(max-width:780px){.arch-4{grid-template-columns:1fr 1fr}}
+  @media(max-width:640px){.arch-4,.arch-3,.arch-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="c">
+
+<div class="hdr">
+  <h1>Kindle Scribe 筆記與同步功能報告</h1>
+  <div class="sub">針對「Kindle Scribe 筆記本設定開啟、分享到 Kindle 帳號、觸發式上傳與跨裝置查看」的功能整理</div>
+  <div class="meta">
+    <div class="chip">範圍：<b>Kindle Scribe / Kindle App</b></div>
+    <div class="chip">同步類型：<b>Amazon 生態內同步</b></div>
+    <div class="chip">核心結論：<b>設定開啟 + 分享觸發同步</b></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">1</span> 問題摘要</div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> 支援</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div> 部分支援 / 有限制</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> 不等同完整雙向同步</div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎使用者問題</h4>
+    <p>本次問題主要確認 Kindle Scribe 是否具備「雙筆記同步」或類似 OneNote / Google Drive / Dropbox 的跨平台同步能力，以及 Kindle Scribe 筆記是否能在其他裝置查看或編輯。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--green)">▎分析結論</h4>
+    <p>Kindle Scribe 具備 <strong>Amazon / Kindle 生態內的筆記同步與查看能力</strong>，但實測結果顯示，它比較接近「觸發式上傳同步」，而不是持續背景即時同步，也不是完整的第三方雲端雙向筆記同步平台。</p>
+    <ul style="margin-top:6px">
+      <li>Notebook 筆記本可同步到 Kindle App 的 Notebooks 區域查看。</li>
+      <li>前提是需先到系統設定開啟同步功能。</li>
+      <li>實測在 Kindle Scribe 筆記本中，若只停留在筆記內操作，未必會立即上傳。</li>
+      <li>點擊分享並選擇分享到 Kindle 帳號後，筆記才會同步上傳。</li>
+      <li>關閉筆記時，也會觸發同步上傳。</li>
+      <li>書籍與文件中的 sticky notes、highlights、on-page markups 可作為閱讀註記與匯出內容。</li>
+      <li>官方 FAQ 曾明確說明不會與 OneNote、Dropbox、Google Drive 這類服務同步。</li>
+      <li>新款 Kindle Scribe 系列開始強調 Google Drive / OneDrive 文件匯入與匯出，但這比較像文件工作流，不等同於筆記本即時雙向同步。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">2</span> 功能架構與同步邊界</div>
+  <div class="card">
+    <p style="margin-bottom:14px">Kindle Scribe 的筆記與同步能力可分成以下幾層：</p>
+
+    <div class="arch arch-4">
+      <div class="arch-box good">
+        <div class="lbl">Layer 1</div>
+        <div class="name">Scribe Notebooks</div>
+        <div class="desc">在 Kindle Scribe 上建立<br>手寫筆記本</div>
+      </div>
+      <div class="arch-box highlight2">
+        <div class="lbl">Layer 2</div>
+        <div class="name">Kindle App</div>
+        <div class="desc">透過 Amazon 帳號同步<br>可查看 Notebooks</div>
+      </div>
+      <div class="arch-box warn">
+        <div class="lbl">Layer 3</div>
+        <div class="name">Docs / PDF</div>
+        <div class="desc">文件標註、匯出<br>部分支援雲端文件流程</div>
+      </div>
+      <div class="arch-box bad">
+        <div class="lbl">Layer 4</div>
+        <div class="name">Third-party Notes</div>
+        <div class="desc">OneNote 類型<br>完整雙向同步未支援</div>
+      </div>
+    </div>
+
+    <div class="arch-arrow">↓</div>
+
+    <div class="code">
+結論流程：<br>
+1. 在 Kindle Scribe 建立 Notebook / 書籍註記 / 文件標註<br>
+2. 需先到系統設定開啟同步功能<br>
+3. 筆記內容不一定在編輯當下立即背景上傳<br>
+4. 點擊分享並選擇分享到 Kindle 帳號後，會觸發同步上傳<br>
+5. 關閉筆記時也會觸發同步上傳<br>
+6. Amazon 帳號內可同步部分筆記與閱讀資料，Kindle App 可查看 Scribe Notebooks<br>
+7. 但不等同 OneNote / Goodnotes / Google Drive 的即時雙向筆記編輯同步
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">3</span> 功能支援狀態整理</div>
+
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table class="tb">
+      <tr><th>功能類型</th><th>狀態</th><th>說明</th></tr>
+      <tr>
+        <td>Kindle Scribe 筆記本</td>
+        <td><span class="b b-aosp">支援</span></td>
+        <td>可在 Scribe 建立 Notebook，並透過 Kindle App 的 Notebooks 區域查看；前提是系統設定需開啟同步，且實測同步上傳主要由分享到 Kindle 帳號或關閉筆記觸發。</td>
+      </tr>
+      <tr>
+        <td>Kindle App 跨裝置查看</td>
+        <td><span class="b b-mod">支援但有限制</span></td>
+        <td>適合查看與回顧筆記；不應視為完整跨平台手寫筆記編輯器。</td>
+      </tr>
+      <tr>
+        <td>書籍內 Sticky Notes / Highlights</td>
+        <td><span class="b b-aosp">支援</span></td>
+        <td>可作為閱讀註記使用，分享時可將部分註記帶出。</td>
+      </tr>
+      <tr>
+        <td>PDF / 文件標註</td>
+        <td><span class="b b-mod">支援但依流程</span></td>
+        <td>可標註與匯出；新款 Scribe 更強調 Google Drive / OneDrive 文件匯入匯出。</td>
+      </tr>
+      <tr>
+        <td>OneNote / Google Drive / Dropbox 雙向筆記同步</td>
+        <td><span class="b b-del">未完整支援</span></td>
+        <td>官方舊 FAQ 明確表示不與這類服務同步；新款文件匯入匯出也不等同筆記本雙向同步。</td>
+      </tr>
+      <tr>
+        <td>AI 筆記整理 / 搜尋 / 摘要</td>
+        <td><span class="b b-new">部分支援</span></td>
+        <td>Amazon 近期介紹 AI 筆記搜尋、摘要與 Send to Alexa 等功能，但可能受裝置、地區與版本限制。</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+
+<div class="sec">
+  <div class="sec-t"><span class="n">4</span> 實測同步行為與影音紀錄</div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎觀察結果</h4>
+    <p>實際測試 Kindle Scribe 筆記本後，筆記同步行為並不是「每一筆手寫內容都即時背景上傳」。同步前提是需先到系統設定開啟同步功能；在筆記本中持續編輯時，若沒有觸發特定動作，雲端端點不一定會立即更新。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--green)">▎會觸發同步上傳的操作</h4>
+    <ul style="margin-top:6px">
+      <li><strong>系統設定開啟同步：</strong>若未在系統設定中開啟同步功能，筆記不會正常上傳到帳號。</li>
+      <li><strong>點擊分享至 Kindle 帳號：</strong>筆記內容會被同步上傳，之後其他端較容易取得最新內容。</li>
+      <li><strong>關閉筆記：</strong>離開或關閉目前筆記時，也會觸發同步上傳。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--red)">▎實測影音紀錄</h4>
+    <p>以下測試影音用於補充本次 Kindle Scribe Notebook 同步行為觀察，重點是確認「需先開啟同步功能，並透過分享到 Kindle 帳號或關閉筆記觸發上傳」。</p>
+    <div class="video-box">
+      <a class="video-link" href="https://youtube.com/shorts/p8rnksFNNmI" target="_blank" rel="noopener">▶ 開啟 YouTube Shorts 測試影片</a>
+      <p style="margin-top:10px;font-size:12px;color:var(--dim)">連結：<span class="mono">https://youtube.com/shorts/p8rnksFNNmI</span></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="arch arch-3">
+      <div class="arch-box warn">
+        <div class="lbl">前提</div>
+        <div class="name">系統設定開啟同步</div>
+        <div class="desc">未開啟同步功能<br>不會正常上傳</div>
+      </div>
+      <div class="arch-box good">
+        <div class="lbl">Trigger 1</div>
+        <div class="name">分享至 Kindle 帳號</div>
+        <div class="desc">觸發同步上傳<br>更新雲端內容</div>
+      </div>
+      <div class="arch-box good">
+        <div class="lbl">Trigger 2</div>
+        <div class="name">關閉筆記</div>
+        <div class="desc">離開筆記時<br>觸發同步上傳</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎修正後判定</h4>
+    <p>因此 Kindle Scribe Notebook 的同步應描述為 <strong>設定開啟後的觸發式上傳同步</strong>。它具備同步能力，但不是像雲端筆記 App 那種持續背景即時同步；使用者若需要確認最新筆記已上傳，應先確認系統設定已開啟同步，並執行「分享到 Kindle 帳號」或關閉筆記。</p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">5</span> 各類筆記同步能力細節</div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎Kindle Scribe Notebook 筆記本</h4>
+    <p>Kindle Scribe 的 Notebook 筆記本可以同步到 Kindle App，使用者可在手機或平板上透過 Kindle App 查看筆記內容。這代表它具備基本的 Amazon 帳號內同步能力，但實測行為比較偏向觸發式上傳。</p>
+    <ul style="margin-top:6px">
+      <li>適合在 Scribe 上手寫，之後在 Kindle App 中回顧。</li>
+      <li>適合會議紀錄、閱讀心得、個人手寫筆記保存。</li>
+      <li>需先到系統設定開啟同步功能。</li>
+      <li>若只停留在筆記中持續編輯，不一定立即上傳最新內容。</li>
+      <li>點擊分享並分享到 Kindle 帳號，或關閉筆記時，會觸發同步上傳。</li>
+      <li>限制是 App 端主要偏向查看，不是完整手寫筆記編輯環境。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎書籍與文件註記</h4>
+    <p>Kindle Scribe 支援在書籍或文件中加入文字或手寫 sticky notes，也可進行 highlights 與 on-page markups。這類資料比較接近閱讀註記系統，而不是獨立筆記資料庫。</p>
+    <ul style="margin-top:6px">
+      <li>適合電子書閱讀時做重點標記。</li>
+      <li>適合 PDF 或文件審閱時做標註。</li>
+      <li>可透過分享或匯出流程帶出部分註記內容。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎第三方雲端文件流程</h4>
+    <p>新款 Kindle Scribe 系列開始強調 Google Drive 與 Microsoft OneDrive 的文件匯入 / 匯出能力。這有助於文件標註工作流，但仍需與「筆記本即時雙向同步」區分。</p>
+    <ul style="margin-top:6px">
+      <li>文件匯入 / 匯出：偏向支援文件處理。</li>
+      <li>筆記本即時雙向同步：目前未被定位為核心功能。</li>
+      <li>OneNote 類跨平台筆記資料庫同步：不能直接等同。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">6</span> 認知對照</div>
+  <div class="card">
+    <div class="arch arch-2">
+      <div class="arch-box" style="border-color:var(--red);background:var(--red-d)">
+        <div class="lbl">錯誤理解</div>
+        <div class="name">等同 OneNote 雙向同步</div>
+        <div class="desc">
+          期待 Scribe、手機、PC、雲端<br>
+          可即時共同編輯同一份手寫筆記
+        </div>
+      </div>
+      <div class="arch-box" style="border-color:var(--green);background:var(--green-d)">
+        <div class="lbl">實際定位</div>
+        <div class="name">Amazon 生態內查看 / 匯出</div>
+        <div class="desc">
+          系統設定開啟同步<br>
+          分享至 Kindle 帳號 / 關閉時上傳<br>
+          Kindle App 查看
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table class="tb">
+      <tr><th>常見認知</th><th>判定</th><th>實際狀況</th></tr>
+      <tr>
+        <td>Kindle Scribe 完全沒有同步</td>
+        <td><span class="b b-del">不正確</span></td>
+        <td>它有 Amazon / Kindle 生態內的筆記同步與查看能力。</td>
+      </tr>
+      <tr>
+        <td>Kindle Scribe 可像 OneNote 一樣雙向同步</td>
+        <td><span class="b b-del">不正確</span></td>
+        <td>目前不屬於完整跨平台雙向筆記同步平台。</td>
+      </tr>
+      <tr>
+        <td>Kindle Scribe 可用於文件標註與匯出</td>
+        <td><span class="b b-aosp">正確</span></td>
+        <td>特別適合閱讀、標註、審閱 PDF 或文件。</td>
+      </tr>
+      <tr>
+        <td>Kindle Scribe 適合重度跨平台筆記管理</td>
+        <td><span class="b b-new">需評估</span></td>
+        <td>若需求是多裝置共同編輯、多人協作、完整雲端筆記管理，可能需其他方案。</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">7</span> 適用與不適用情境</div>
+
+  <div class="card">
+    <h4 style="color:var(--green)">▎適合使用 Kindle Scribe 的情境</h4>
+    <ul style="margin-top:6px">
+      <li>主要在 Kindle Scribe 上閱讀、手寫與做筆記。</li>
+      <li>需要在電子書、PDF 或文件上做閱讀註記。</li>
+      <li>筆記主要在 Amazon / Kindle 生態內查看。</li>
+      <li>偶爾需要匯出 PDF 或分享筆記內容。</li>
+      <li>重視電子紙閱讀體驗與接近紙本的手寫感。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--red)">▎不適合或需謹慎評估的情境</h4>
+    <ul style="margin-top:6px">
+      <li>需要與 OneNote 即時雙向同步。</li>
+      <li>需要在 PC、手機、平板與電子紙裝置共同編輯同一份筆記。</li>
+      <li>需要多人協作或雲端共同編輯。</li>
+      <li>需要完整取代 Goodnotes / Notability / OneNote。</li>
+      <li>需要完整取代公司內部文件協作平台。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">8</span> 使用建議</div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎若主要需求是閱讀與個人筆記</h4>
+    <p>Kindle Scribe 是合理選擇。它適合長時間閱讀、文件審閱、手寫摘要與個人筆記保存，並可透過 Kindle App 查看筆記內容。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎若主要需求是跨平台筆記同步</h4>
+    <p>建議改評估 iPad + OneNote / Goodnotes，或其他支援完整雲端同步的電子紙筆記裝置。Kindle Scribe 的強項不是多人協作或跨平台即時編輯。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--purple)">▎若主要需求是文件標註工作流</h4>
+    <p>可關注新款 Kindle Scribe 對 Google Drive / Microsoft OneDrive 的文件匯入與匯出支援，但仍需確認實際地區、帳號與韌體版本是否已開放。</p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">9</span> 最終判定</div>
+  <div class="card">
+    <p><strong>Kindle Scribe 有筆記同步與跨裝置查看能力；實測 Notebook 同步需先在系統設定開啟同步功能，並主要由「分享到 Kindle 帳號」或「關閉筆記」觸發上傳，但沒有完整的 OneNote / Google Drive / Dropbox 雙向即時同步功能。</strong></p>
+    <p style="margin-top:8px">若使用需求是「在 Kindle Scribe 上寫，確認系統同步已開啟後，透過分享到 Kindle 帳號或關閉筆記觸發上傳，之後在 Kindle App 查看或匯出」，它可以勝任。若需求是「編輯過程中跨裝置即時同步並共同編輯同一份手寫筆記」，Kindle Scribe 目前不是最適合的產品定位。</p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">10</span> 參考資料</div>
+  <div class="card">
+    <ul>
+      <li><a href="https://www.aboutamazon.com/news/devices/kindle-scribe" target="_blank">Amazon Kindle Scribe FAQ / Product Information</a></li>
+      <li><a href="https://www.aboutamazon.com/news/devices/new-amazon-kindle-scribe-color" target="_blank">Amazon 新款 Kindle Scribe / Kindle Scribe Colorsoft 公告</a></li>
+      <li><a href="https://www.aboutamazon.com/news/devices/kindle-scribe-gen-ai-notebook" target="_blank">Amazon Kindle Scribe AI Notebook 功能說明</a></li>
+      <li><a href="https://www.amazonforum.com/s/question/0D56Q0000DT9wKSSQZ/transfer-notebooks-to-pc" target="_blank">Amazon Forum：Kindle Scribe Notebooks 與 App 查看說明</a></li>
+      <li><a href="https://youtube.com/shorts/p8rnksFNNmI" target="_blank">實測影音：Kindle Scribe Notebook 同步行為測試</a></li>
+    </ul>
+  </div>
+</div>
+
+<div class="note">Kindle Scribe Notes & Sync Report · Settings-enabled Triggered Sync / Kindle Account Upload</div>
+
+</div>
+</body>
+</html>
