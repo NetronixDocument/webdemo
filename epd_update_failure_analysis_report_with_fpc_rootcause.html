@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EPD 刷圖異常問題解析報告</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+  :root {
+    --bg:#0f1117;--s1:#1a1d27;--s2:#232733;--s3:#2a2e3d;
+    --bd:#2e3345;--tx:#e2e4eb;--dim:#8b90a0;
+    --blue:#6c8cff;--blue-d:rgba(108,140,255,.12);
+    --cyan:#22d3ee;--cyan-d:rgba(34,211,238,.12);
+    --green:#4ade80;--green-d:rgba(74,222,128,.12);
+    --amber:#fbbf24;--amber-d:rgba(251,191,36,.12);
+    --red:#f87171;--red-d:rgba(248,113,113,.12);
+    --purple:#a78bfa;--purple-d:rgba(167,139,250,.12);
+    --pink:#f472b6;--pink-d:rgba(244,114,182,.12);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Noto Sans TC','Inter',sans-serif;background:var(--bg);color:var(--tx);line-height:1.7;padding:40px 20px}
+  .c{max-width:900px;margin:0 auto}
+  .hdr{text-align:center;margin-bottom:48px;padding-bottom:28px;border-bottom:1px solid var(--bd)}
+  .hdr h1{font-size:26px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+  .hdr .sub{color:var(--dim);font-size:13px}
+  .hdr .meta{display:flex;gap:12px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+  .hdr .chip{background:var(--s1);border:1px solid var(--bd);border-radius:6px;padding:4px 14px;font-size:12px;color:var(--dim)}
+  .hdr .chip b{color:var(--tx)}
+  .sec{margin-bottom:40px}
+  .sec-t{font-size:17px;font-weight:700;margin-bottom:14px;padding-left:12px;border-left:3px solid var(--blue);display:flex;align-items:center;gap:8px}
+  .sec-t .n{background:var(--blue);color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+  .card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:18px 22px;margin-bottom:10px}
+  .card h4{font-size:14px;font-weight:600;margin-bottom:6px}
+  .card p,.card li{font-size:13.5px;color:var(--dim)}
+  .card ul{padding-left:18px}
+  .card li{margin-bottom:3px}
+  .b{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:4px;letter-spacing:.3px;vertical-align:middle;white-space:nowrap}
+  .b-aosp{background:var(--green-d);color:var(--green)}
+  .b-ntx{background:var(--purple-d);color:var(--purple)}
+  .b-hal{background:var(--cyan-d);color:var(--cyan)}
+  .b-new{background:var(--amber-d);color:var(--amber)}
+  .b-mod{background:var(--blue-d);color:var(--blue)}
+  .b-del{background:var(--red-d);color:var(--red)}
+  .tb{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  .tb th{text-align:left;padding:8px 12px;background:var(--s2);color:var(--dim);font-weight:600;border-bottom:1px solid var(--bd)}
+  .tb td{padding:8px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
+  .tb tr:last-child td{border-bottom:none}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:12px}
+  .tl{position:relative;padding-left:28px;margin:16px 0}
+  .tl::before{content:'';position:absolute;left:9px;top:4px;bottom:4px;width:2px;background:var(--bd)}
+  .tl-item{position:relative;margin-bottom:14px}
+  .tl-item::before{content:'';position:absolute;left:-22px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--blue);border:2px solid var(--bg)}
+  .tl-item.first::before{background:var(--green)}
+  .tl-item.warn::before{background:var(--amber)}
+  .tl-item.bad::before{background:var(--red)}
+  .tl-item.last::before{background:var(--cyan)}
+  .tl-date{font-size:11px;color:var(--dim);font-family:'JetBrains Mono',monospace}
+  .tl-msg{font-size:13px;margin-top:2px}
+  .arch{display:grid;gap:10px;margin:16px 0}
+  .arch-3{grid-template-columns:1fr 1fr 1fr}
+  .arch-2{grid-template-columns:1fr 1fr}
+  .arch-box{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;text-align:center}
+  .arch-box .lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .arch-box .name{font-size:13px;font-weight:600}
+  .arch-box .desc{font-size:11px;color:var(--dim);margin-top:4px}
+  .arch-box.highlight{border-color:var(--purple);box-shadow:0 0 12px rgba(167,139,250,.1)}
+  .arch-box.highlight2{border-color:var(--cyan);box-shadow:0 0 12px rgba(34,211,238,.1)}
+  .arch-box.danger{border-color:var(--red);box-shadow:0 0 12px rgba(248,113,113,.1)}
+  .arch-arrow{text-align:center;font-size:18px;color:var(--dim);padding:4px 0}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;padding:10px 16px;background:var(--s1);border-radius:8px;border:1px solid var(--bd)}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+  .legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+  .code{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;overflow-x:auto;margin-top:10px}
+  .code pre{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.75;color:var(--tx);white-space:pre-wrap}
+  .note{font-size:11px;color:var(--dim);text-align:center;margin-top:24px}
+  strong{color:var(--tx)}
+  @media(max-width:640px){.arch-3,.arch-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="c">
+
+<div class="hdr">
+  <h1>EPD 刷圖異常問題解析報告</h1>
+  <div class="sub">針對「刷圖失敗、<span class="mono">resetEpd() = -1</span>、<span class="mono">epd_update FAIL</span>」的 log 分析與排查建議</div>
+  <div class="meta">
+    <div class="chip">範圍：<b>Android / Signage SDK / ntxSpi</b></div>
+    <div class="chip">來源：<b>logcat.8</b></div>
+    <div class="chip">核心原因：<b>EPD Driver IC status check timeout / FPC 接觸需排查</b></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">1</span> 問題摘要</div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> 直接失敗點</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div> 可能根因</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cyan)"></div> 建議排查方向</div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--red)">▎異常現象</h4>
+    <p>App 送出 <span class="mono">epd_update</span> 刷圖流程後，圖片資料有進入 <span class="mono">convertToEpdBuffer()</span> 並完成轉換，但接著在 <span class="mono">NtxSpiUtility.resetEpd()</span> 階段失敗，回傳 <span class="mono">-1</span>。上層最後收到 <span class="mono">ntxSpi resetEpd() fail</span>，並回報 <span class="mono">action:epd_update FAIL</span>。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--green)">▎最終判斷</h4>
+    <p>這不是單純圖片轉檔、UI 或 Activity callback 問題。從 log 來看，真正的失敗鏈為：</p>
+    <ul style="margin-top:6px">
+      <li>Signage SDK 收到 <span class="mono">epd_update</span> intent，開始刷圖流程。</li>
+      <li><span class="mono">convertToEpdBuffer()</span> 將 2560 × 720 圖片轉成 EPD buffer，流程成功返回。</li>
+      <li>流程進入 <span class="mono">resetEpd()</span>，並執行 EPD / G2195 power sequence。</li>
+      <li>ntxSpi 透過 SPI 讀取 EPD Driver IC 狀態，但 8 顆 Driver IC 多次讀到 <span class="mono">0x00 0x00 0x00</span> 或無效資料。</li>
+      <li>Retry 100 次後仍無法取得所有 Driver IC response，回報 <span class="mono">fail to get all drive IC status</span>。</li>
+      <li><span class="mono">resetEpd()</span> 回傳 <span class="mono">-1</span>，導致 <span class="mono">epd_update</span> 失敗。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">2</span> 刷圖事件流</div>
+  <div class="card">
+    <p style="margin-bottom:14px">下面是這次 EPD 刷圖失敗的核心架構圖：</p>
+
+    <div class="arch arch-3">
+      <div class="arch-box highlight">
+        <div class="lbl">Application</div>
+        <div class="name">MainActivity / SlideShowService</div>
+        <div class="desc">送出 epd_update<br>呼叫 Signage SDK</div>
+      </div>
+      <div class="arch-box highlight2">
+        <div class="lbl">SDK / JNI</div>
+        <div class="name">NtxSpiUtility</div>
+        <div class="desc">convertToEpdBuffer 成功<br>進入 resetEpd</div>
+      </div>
+      <div class="arch-box danger">
+        <div class="lbl">Hardware Path</div>
+        <div class="name">EPD Driver IC / SPI</div>
+        <div class="desc">Driver IC 無回應<br>status check timeout</div>
+      </div>
+    </div>
+
+    <div class="arch-arrow">↓</div>
+
+    <div class="code">
+      <pre>正常預期：
+epd_update
+  → convertToEpdBuffer OK
+  → resetEpd OK
+  → Driver IC ready
+  → 傳送 waveform / image data
+  → EPD refresh success
+
+目前實際：
+epd_update
+  → convertToEpdBuffer OK
+  → resetEpd
+  → EPDPWR / G2195PWR power sequence
+  → Driver IC[0..7] did not reply
+  → retry 100 times
+  → fail to get all drive IC status
+  → resetEpd() = -1
+  → epd_update FAIL</pre>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">3</span> 關鍵 log 證據</div>
+
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table class="tb">
+      <tr><th>時間 / 階段</th><th>來源</th><th>重點訊息</th><th>判斷</th></tr>
+      <tr>
+        <td class="mono">08:33:21</td>
+        <td><span class="b b-aosp">App / Service</span></td>
+        <td><span class="mono">service handle intent. action:epd_update</span></td>
+        <td>上層已收到刷圖 request，流程有被正確觸發。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:33:23 / 08:33:54</td>
+        <td><span class="b b-ntx">NtxSpiUtility</span></td>
+        <td><span class="mono">convertToEpdBuffer 253 &gt;&gt;&gt; w h: 2560 720</span><br><span class="mono">convertToEpdBuffer 272 &lt;&lt;&lt;</span></td>
+        <td>EPD buffer 轉換成功，因此不優先懷疑圖片格式或 buffer 轉換失敗。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:33:54</td>
+        <td><span class="b b-ntx">ntxSpi</span></td>
+        <td><span class="mono">[resetEpd 1921] &gt;&gt;&gt;</span></td>
+        <td>刷圖流程進入 EPD reset / hardware ready check 階段。</td>
+      </tr>
+      <tr>
+        <td class="mono">resetEpd early stage</td>
+        <td><span class="b b-hal">Power Control</span></td>
+        <td><span class="mono">AT+EPDPWR=0</span><br><span class="mono">AT+G2195PWR=1</span><br><span class="mono">+G2195PWR:1</span></td>
+        <td>程式有嘗試執行 EPD / G2195 電源控制，且 AT command 層有回 OK / enabled。</td>
+      </tr>
+      <tr>
+        <td class="mono">Driver IC check</td>
+        <td><span class="b b-del">ntxSpi</span></td>
+        <td><span class="mono">Driver IC [0] = 0x00 0x00 0x00</span><br><span class="mono">Driver IC [0] did not reply.</span><br><span class="mono">Driver IC [7] did not reply.</span></td>
+        <td>EPD Driver IC 沒有正確回應。這是第一個明確的底層異常點。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:33:44 / 08:34:15 / 多次重現</td>
+        <td><span class="b b-del">ntxSpi</span></td>
+        <td><span class="mono">retry 100 times, fail to get all drive ic response</span><br><span class="mono">fail to get all drive IC status</span></td>
+        <td>Driver IC status check timeout，導致 resetEpd 失敗。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:33:50 / 多次重現</td>
+        <td><span class="b b-aosp">MainActivity</span></td>
+        <td><span class="mono">onReceiveResult message:ntxSpi resetEpd() fail</span><br><span class="mono">action:epd_update FAIL.</span></td>
+        <td>上層收到的是 resetEpd 失敗結果，不是 UI 主動取消或 callback 遺失。</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎重現頻率觀察</h4>
+    <p>同一份 log 中可見多次 <span class="mono">NtxSpiUtility.resetEpd() = -1</span>，且多次伴隨 <span class="mono">fail to get all drive IC status</span>。這表示異常不是單次偶發 UI timeout，而是 EPD reset / Driver IC communication path 持續性失敗。</p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">4</span> Root Cause 分析</div>
+
+  <div class="card">
+    <h4 style="color:var(--red)">▎直接原因：resetEpd 讀取 Driver IC 狀態失敗</h4>
+    <p>Log 中連續出現 <span class="mono">Driver IC [x] did not reply</span>、<span class="mono">retry 100 times</span>、<span class="mono">fail to get all drive IC status</span>。因此 <span class="mono">resetEpd() = -1</span> 的直接原因，是 EPD Driver IC status check 沒有在 timeout 前通過。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎可能根因 1：EPD panel / Driver IC 未正常上電</h4>
+    <ul style="margin-top:6px">
+      <li>雖然 <span class="mono">AT+G2195PWR=1</span> 回覆成功，但這只代表控制命令成功，不等於實際 VGH / VGL / VCOM / source / gate rail 都正常。</li>
+      <li>若 G2195 enable 後實際輸出不穩或 delay 不足，Driver IC 仍可能完全不回應。</li>
+      <li>建議以示波器或 DMM 量測 EPD power rails，而不是只看 AT command response。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎可能根因 2：EPD reset pin / power sequence 時序異常</h4>
+    <p>Log 中可見 <span class="mono">setEpdPin ... on: 0</span> 後進入電源與 Driver IC 檢查流程。若 reset pin 未正確 release、GPIO polarity 錯、delay 不足，或 power/reset 順序不符合 panel spec，都會造成 Driver IC 無法進入可通訊狀態。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎可能根因 3：SPI read path 或 panel FPC 接觸異常</h4>
+    <p>多數 Driver IC 回讀為 <span class="mono">0x00 0x00 0x00</span>，代表 MISO 沒有有效資料，可能是 SPI MISO / CLK / CS 線路、pinmux、driver node、FPC 接觸、panel 端連接或硬體焊接問題。若偶爾讀到類似 <span class="mono">0x00 0xA2 0x89</span> 但仍判定 did not reply，也需要確認讀值格式與 expected signature 是否一致。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎可能根因 4：EPD 排線 / FPC 接觸不良</h4>
+    <p>本次 log 呈現多顆 Driver IC 連續 <span class="mono">did not reply</span>，且常見 raw data 為 <span class="mono">0x00 0x00 0x00</span>。這種「所有 Driver IC 都無法正常回應」的型態，除了電源與 reset 時序外，也很符合 EPD 排線 / FPC 接觸不良造成 panel 端未連通或未醒來的情境。</p>
+    <ul style="margin-top:6px">
+      <li>FPC 未插到底、卡扣未壓緊、金手指氧化 / 髒污 / 偏位，都可能造成 Driver IC 沒有正常上電或通訊中斷。</li>
+      <li>若 RESET / BUSY / SPI MISO / CLK / CS 任一關鍵訊號經由排線接觸不良，<span class="mono">resetEpd()</span> 就可能讀不到 Driver IC status。</li>
+      <li>建議將排線接觸列為高優先排查項，先做重新插拔、清潔金手指、壓接確認、輕壓測試與 panel / 主板交叉測試。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">5</span> 非主要原因排除</div>
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table class="tb">
+      <tr><th>項目</th><th>判斷</th><th>原因</th></tr>
+      <tr>
+        <td>圖片 buffer 轉換</td>
+        <td><span class="b b-del">非主因</span></td>
+        <td><span class="mono">convertToEpdBuffer()</span> 有正常進出，且解析度 <span class="mono">2560 × 720</span> 有被處理。</td>
+      </tr>
+      <tr>
+        <td>App 沒有送出刷圖</td>
+        <td><span class="b b-del">非主因</span></td>
+        <td><span class="mono">SlideShowService</span> 已收到 <span class="mono">action:epd_update</span>，上層流程有啟動。</td>
+      </tr>
+      <tr>
+        <td>MainActivity callback 問題</td>
+        <td><span class="b b-del">非主因</span></td>
+        <td>callback 收到的訊息是 <span class="mono">ntxSpi resetEpd() fail</span>，代表錯誤已由底層回傳。</td>
+      </tr>
+      <tr>
+        <td>USBATTACH / Battery check</td>
+        <td><span class="b b-new">旁支流程</span></td>
+        <td>Log 中 <span class="mono">+USBATTACH:1</span> 與 battery check 有正常回應，目前不是導致 <span class="mono">resetEpd()</span> 失敗的直接證據。</td>
+      </tr>
+      <tr>
+        <td>AT command 回 OK</td>
+        <td><span class="b b-new">不足以排除硬體</span></td>
+        <td><span class="mono">AT+G2195PWR=1</span> 回 OK 只能說明控制通道有回應，仍需量測實際 EPD 電壓與 reset waveform。</td>
+      </tr>
+      <tr>
+        <td>EPD 排線 / FPC</td>
+        <td><span class="b b-new">高優先懷疑項</span></td>
+        <td>所有 Driver IC 都無回應時，排線未插好、金手指髒污、connector 壓接不足或 FPC 偏位，都可能造成 panel 端未上電或 SPI / RESET / BUSY 訊號中斷。</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">6</span> 建議檢查項目</div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 1：確認 EPD power rails / G2195 實際輸出</h4>
+    <div class="code"><pre># 建議搭配硬體量測，不只看 log
+# 量測項目：VGH / VGL / VCOM / source power / gate power / panel logic power
+# 比對時機：AT+EPDPWR=0、AT+G2195PWR=1、reset release、Driver IC read 前後</pre></div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 2：確認 reset pin / power sequence 時序</h4>
+    <div class="code"><pre>adb shell getprop | grep -i -E "pcb|epd|ntx|panel"
+adb shell dmesg | grep -i -E "epd|ntx|spi|g2195|pmic|gpio|panel"
+
+# 建議在 kernel / native 層補 log：
+# 1. reset pin assert / release 時間
+# 2. G2195 enable 後 delay
+# 3. 每次讀 Driver IC 前的 GPIO 狀態
+# 4. expected Driver IC ID / signature</pre></div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 3：確認 SPI read path 與 panel FPC</h4>
+    <div class="code"><pre>adb shell ls -l /dev | grep -i spi
+adb shell dmesg | grep -i -E "spi|miso|mosi|clk|cs|pinmux"
+
+# 硬體側建議：
+# 1. 重新插拔 EPD FPC，確認插到底且卡扣壓緊
+# 2. 清潔 FPC 金手指與 connector，確認無氧化、髒污、刮傷、偏位
+# 3. 輕壓 FPC / connector 重測 resetEpd，觀察是否由 fail 轉 pass
+# 4. 量測 SPI CLK / CS / MISO / RESET / BUSY 是否有波形
+# 5. 以正常 panel + 異常主板、異常 panel + 正常主板做交叉測試
+# 6. 比對正常機與異常機 Driver IC readback</pre></div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 4：重現時只抓 EPD 關鍵 log</h4>
+    <div class="code"><pre>adb logcat -c
+adb logcat -b all | grep -i -E "epd_update|NtxSpiUtility|resetEpd|convertToEpdBuffer|Driver IC|drive IC|EPDPWR|G2195PWR|setEpdPin|spiReceive"</pre></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">7</span> 建議修正方向</div>
+  <div class="card">
+    <ul>
+      <li>先用正常機與異常機比對 <span class="mono">resetEpd()</span> 前後的 power sequence、GPIO 狀態與 Driver IC readback。</li>
+      <li>確認 G2195 enable 後實際電壓是否到位，並確認電壓穩定時間是否足夠。</li>
+      <li>確認 EPD reset pin 是否有正確 assert / release，且 delay 符合 panel / driver IC spec。</li>
+      <li>檢查 SPI MISO / CLK / CS 以及 panel FPC 接觸；若全部 Driver IC 都不回，優先懷疑共用電源、reset、SPI bus 或 FPC 接觸不良。</li>
+      <li>針對 EPD FPC 進行重新壓接、清潔金手指、connector 外觀檢查與輕壓測試；若重插後恢復，則排線接觸不良可列為主要根因。</li>
+      <li>在 <span class="mono">resetEpd()</span> Driver IC status check 中補上 expected signature、raw data、retry index、GPIO / power 狀態，以便區分「完全無資料」與「讀到資料但格式不符」。</li>
+      <li>若確認只是 power ready 時間不足，可嘗試增加 G2195 enable 後 delay 或 Driver IC check retry interval，但這只能作為 workaround，仍需確認硬體時序。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">8</span> 最終結論</div>
+  <div class="card">
+    <p>目前 log 已可確認：<strong>EPD 刷圖不是卡在圖片轉換，而是卡在 <span class="mono">resetEpd()</span> 的 Driver IC 狀態確認階段</strong>。直接錯誤是 EPD Driver IC 無法在 retry 100 次內回應，導致 <span class="mono">fail to get all drive IC status</span>，最後 <span class="mono">NtxSpiUtility.resetEpd() = -1</span>，上層回報 <span class="mono">epd_update FAIL</span>。</p>
+    <p style="margin-top:8px">優先處理順序建議為：</p>
+    <ul style="margin-top:6px">
+      <li>先量測 EPD / G2195 實際電源輸出與 reset waveform。</li>
+      <li>再確認 SPI read path、pinmux、FPC 接觸狀態與 Driver IC readback。</li>
+      <li>若重新壓接 / 更換 panel 後恢復，則可將 EPD 排線 / FPC 接觸不良列為主要根因。</li>
+      <li>最後才看上層刷圖流程或 callback 行為。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="note">EPD Update Failure Analysis Report · resetEpd Driver IC Status Timeout</div>
+
+</div>
+</body>
+</html>
