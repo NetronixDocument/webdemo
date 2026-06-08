@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Samsung E-Paper App 功能確認報告</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+  :root {
+    --bg:#0f1117;--s1:#1a1d27;--s2:#232733;--s3:#2a2e3d;
+    --bd:#2e3345;--tx:#e2e4eb;--dim:#8b90a0;
+    --blue:#6c8cff;--blue-d:rgba(108,140,255,.12);
+    --cyan:#22d3ee;--cyan-d:rgba(34,211,238,.12);
+    --green:#4ade80;--green-d:rgba(74,222,128,.12);
+    --amber:#fbbf24;--amber-d:rgba(251,191,36,.12);
+    --red:#f87171;--red-d:rgba(248,113,113,.12);
+    --purple:#a78bfa;--purple-d:rgba(167,139,250,.12);
+    --pink:#f472b6;--pink-d:rgba(244,114,182,.12);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Noto Sans TC','Inter',sans-serif;background:var(--bg);color:var(--tx);line-height:1.7;padding:40px 20px}
+  .c{max-width:980px;margin:0 auto}
+  .hdr{text-align:center;margin-bottom:44px;padding-bottom:28px;border-bottom:1px solid var(--bd)}
+  .hdr h1{font-size:30px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+  .hdr .sub{color:var(--dim);font-size:14px}
+  .hdr .meta{display:flex;gap:12px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+  .chip{background:var(--s1);border:1px solid var(--bd);border-radius:999px;padding:5px 14px;font-size:12px;color:var(--dim)}
+  .chip b{color:var(--tx)}
+  .sec{margin-bottom:40px}
+  .sec-t{font-size:18px;font-weight:700;margin-bottom:14px;padding-left:12px;border-left:3px solid var(--blue);display:flex;align-items:center;gap:8px}
+  .sec-t .n{background:var(--blue);color:#fff;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+  .card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:20px 24px;margin-bottom:12px}
+  .card h4{font-size:15px;font-weight:700;margin-bottom:8px}
+  .card p,.card li{font-size:13.5px;color:var(--dim)}
+  .card ul{padding-left:20px;margin-top:6px}
+  .card li{margin-bottom:4px}
+  .grid{display:grid;gap:12px}
+  .grid-3{grid-template-columns:repeat(3,1fr)}
+  .grid-2{grid-template-columns:repeat(2,1fr)}
+  .mini{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:16px}
+  .mini .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .mini .name{font-weight:700;font-size:15px}
+  .mini .desc{font-size:12px;color:var(--dim);margin-top:5px}
+  .mini.ok{border-color:var(--green);box-shadow:0 0 12px rgba(74,222,128,.08)}
+  .mini.info{border-color:var(--cyan);box-shadow:0 0 12px rgba(34,211,238,.08)}
+  .mini.warn{border-color:var(--amber);box-shadow:0 0 12px rgba(251,191,36,.08)}
+  .b{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.3px;vertical-align:middle}
+  .b-ok{background:var(--green-d);color:var(--green)}
+  .b-info{background:var(--cyan-d);color:var(--cyan)}
+  .b-note{background:var(--purple-d);color:var(--purple)}
+  .b-test{background:var(--amber-d);color:var(--amber)}
+  .tb{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  .tb th{text-align:left;padding:9px 12px;background:var(--s2);color:var(--dim);font-weight:700;border-bottom:1px solid var(--bd);white-space:nowrap}
+  .tb td{padding:10px 12px;border-bottom:1px solid var(--bd);vertical-align:top;color:var(--dim)}
+  .tb tr:last-child td{border-bottom:none}
+  .tb strong{color:var(--tx)}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:12px}
+  .flow{display:grid;grid-template-columns:1fr 32px 1fr 32px 1fr;gap:8px;align-items:stretch;margin:14px 0}
+  .arrow{display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:20px}
+  .shots{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .shot,.wide-shot{background:var(--s1);border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+  .shot img{width:100%;height:260px;object-fit:cover;object-position:top;display:block;background:#111}
+  .wide-shot img{width:100%;max-height:420px;object-fit:contain;display:block;background:#111}
+  figcaption{font-size:12px;color:var(--dim);padding:9px 12px;border-top:1px solid var(--bd)}
+  .note{font-size:11px;color:var(--dim);text-align:center;margin-top:24px}
+  .callout{border-left:3px solid var(--cyan);background:var(--cyan-d);padding:14px 16px;border-radius:8px;color:var(--tx);font-size:13.5px}
+
+  .link-card{display:flex;justify-content:space-between;gap:14px;align-items:center;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:16px;margin-top:12px}
+  .link-card .title{font-size:14px;font-weight:700;color:var(--tx)}
+  .link-card .url{font-size:12px;color:var(--dim);word-break:break-all;margin-top:4px}
+  .link-card a{display:inline-block;background:var(--blue-d);color:var(--blue);border:1px solid rgba(108,140,255,.35);text-decoration:none;border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;white-space:nowrap}
+  .link-card a:hover{background:rgba(108,140,255,.2)}
+  @media(max-width:760px){.link-card{display:block}.link-card a{margin-top:12px}}
+  @media(max-width:760px){
+    body{padding:26px 14px}
+    .grid-3,.grid-2,.shots{grid-template-columns:1fr}
+    .flow{grid-template-columns:1fr}
+    .arrow{transform:rotate(90deg);padding:4px}
+    .shot img{height:340px}
+  }
+</style>
+</head>
+<body>
+<div class="c">
+  <div class="hdr">
+    <h1>Samsung E-Paper App 功能確認報告</h1>
+    <div class="sub">針對 Samsung E-Paper 應用程式之裝置加入、內容傳送、播放清單、排程與裝置設定進行功能整理</div>
+    <div class="meta">
+      <div class="chip">裝置：<b>EM32DX-A 018E</b></div>
+      <div class="chip">Firmware：<b>S-RSEDWWC-1100.0</b></div>
+      <div class="chip">內容模式：<b>Contents / Playlist / Schedule</b></div>
+      <div class="chip">操作手冊：<b>已附連結</b></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="n">1</span> 確認結論</div>
+    <div class="card">
+      <p>依據實測畫面與功能操作確認，Samsung E-Paper App 可作為本地端近場管理工具，用於加入機台、傳送單張圖片、建立多張圖片輪播、設定本地端排程，以及進行裝置顯示、電源、網路、安全與維護設定。</p>
+      <div class="grid grid-3" style="margin-top:14px">
+        <div class="mini ok"><div class="lbl">Add Device</div><div class="name">QR Code / 藍牙搜尋</div><div class="desc">可掃描機台 QR Code，或透過 Scan nearby 搜尋附近裝置。</div></div>
+        <div class="mini info"><div class="lbl">Content</div><div class="name">單張 / 多張 / 排程</div><div class="desc">Contents、Playlist、Schedule 分別對應單張傳送、輪播清單、本地端排程。</div></div>
+        <div class="mini warn"><div class="lbl">Settings</div><div class="name">完整裝置管理</div><div class="desc">包含顯示、睡眠、電源、憑證、韌體、網路與重置功能。</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="n">2</span> 裝置加入方式</div>
+    <div class="card">
+      <table class="tb">
+        <tr><th>方式</th><th>確認內容</th><th>適用情境</th></tr>
+        <tr><td><strong>QR Code 掃描</strong></td><td>App 畫面提示可掃描裝置螢幕上顯示的 QR Code 來加入機台。</td><td>快速綁定指定單一裝置。</td></tr>
+        <tr><td><strong>藍牙 / Nearby 搜尋</strong></td><td>可點選 <span class="mono">Scan nearby</span>，從附近裝置清單中搜尋與加入機台。</td><td>現場多台設備或不方便掃描 QR Code 時使用。</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="n">3</span> 內容操作模式</div>
+    <div class="card">
+      <div class="flow">
+        <div class="mini ok"><div class="lbl">Contents</div><div class="name">單張圖片傳送</div><div class="desc">較接近單張圖片內容管理，可將圖片匯入 App 後設定到裝置顯示。</div></div>
+        <div class="arrow">→</div>
+        <div class="mini info"><div class="lbl">Playlist</div><div class="name">多張圖片輪播</div><div class="desc">可加入多張圖片，也可設定單張圖片的輪播時間與播放順序。</div></div>
+        <div class="arrow">→</div>
+        <div class="mini warn"><div class="lbl">Schedule</div><div class="name">本地端排程</div><div class="desc">可生成本地端播放排程，依指定時間播放內容或播放清單。</div></div>
+      </div>
+      <div class="callout">目前確認 App 底部有 Devices 與 Contents 入口；Contents 頁面內包含 Contents、Playlist、Schedule 三個分頁，可支援由單張內容到排程播放的操作流程。</div>
+      <div class="callout" style="border-left-color:var(--amber);background:var(--amber-d);margin-top:12px">
+        <strong>操作限制：</strong>本地端排程需要針對每一張圖片逐一進行時間設定，若圖片數量較多，設定流程會比較繁瑣，現場大量內容更新時操作效率較低。
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="n">4</span> 裝置設定功能</div>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table class="tb">
+        <tr><th>分類</th><th>功能項目</th><th>確認狀態</th><th>說明</th></tr>
+        <tr><td>General</td><td>Device name、Date &amp; Time</td><td><span class="b b-ok">已確認</span></td><td>可查看與設定裝置名稱、日期時間。</td></tr>
+        <tr><td>Network</td><td>Network Status、Low-power Wi-Fi settings</td><td><span class="b b-ok">已確認</span></td><td>可查看網路狀態，並提供低功耗 Wi-Fi 設定入口。</td></tr>
+        <tr><td>Support</td><td>Firmware Update、App Certificate、Wi-Fi Certificate</td><td><span class="b b-ok">已確認</span></td><td>提供韌體更新、App 憑證與 Wi-Fi 憑證管理。</td></tr>
+        <tr><td>Display</td><td>Screen Orientation、Picture Mode、Default wallpaper color</td><td><span class="b b-info">已確認</span></td><td>可設定橫向顯示、背景色，以及 Custom / Vivid / Text 圖片模式。</td></tr>
+        <tr><td>Power</td><td>Sleep、Battery warning、Sleep After、POE+</td><td><span class="b b-info">已確認</span></td><td>可控制睡眠、省電提醒、睡眠時間與 POE+ 開關。</td></tr>
+        <tr><td>Security</td><td>Change PIN、Button Lock、USB Lock</td><td><span class="b b-note">已確認</span></td><td>可變更 PIN、鎖定裝置按鍵，以及限制 USB Port 使用。</td></tr>
+        <tr><td>Reset</td><td>Reset All / Reset all data</td><td><span class="b b-test">需謹慎測試</span></td><td>可清除資料或恢復出廠設定，建議只在測試環境操作。</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-t"><span class="n">5</span> 建議測試流程</div>
+    <div class="card">
+      <ul>
+        <li><strong>裝置加入：</strong>分別驗證 QR Code 掃描與 Scan nearby 搜尋是否可成功加入同一台機台。</li>
+        <li><strong>單張圖片：</strong>使用 Contents 上傳一張圖片並 Set content，確認裝置畫面更新結果。</li>
+        <li><strong>多張輪播：</strong>建立 Playlist，加入 2 張以上圖片，設定每張顯示時間後確認輪播是否符合設定。</li>
+        <li><strong>本地排程：</strong>建立 Schedule，確認排程時間到達後是否自動切換內容或播放清單；同時記錄一張圖一張圖設定時間所需的操作步驟與耗時。</li>
+        <li><strong>裝置設定：</strong>驗證 Screen Orientation、Picture Mode、Sleep After、Button Lock、USB Lock 等設定是否會同步到裝置。</li>
+      </ul>
+    </div>
+  </div>
+
+
+  <div class="sec">
+    <div class="sec-t"><span class="n">6</span> 參考文件</div>
+    <div class="card">
+      <p>本報告附上 Samsung EM32DX-A / EM32DX / EM13DX 操作手冊連結，供後續功能確認、安裝設定與維護查閱使用。</p>
+      <div class="link-card">
+        <div>
+          <div class="title">EM32DX-A 018E 操作手冊</div>
+          <div class="url">https://downloadcenter.samsung.com/content/UM/202602/20260208035316001/BN81-27642B-02_WUG_EM32DX%20EM32DX-A%20EM13DX_ASIA%20MENA%20AFRICA_TPE_251119.0.pdf</div>
+        </div>
+        <a href="https://downloadcenter.samsung.com/content/UM/202602/20260208035316001/BN81-27642B-02_WUG_EM32DX%20EM32DX-A%20EM13DX_ASIA%20MENA%20AFRICA_TPE_251119.0.pdf" target="_blank" rel="noopener noreferrer">開啟操作手冊 PDF</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">Samsung E-Paper App Function Check Report · HTML Style Version</div>
+</div>
+</body>
+</html>
