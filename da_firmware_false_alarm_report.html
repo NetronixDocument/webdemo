@@ -88,6 +88,7 @@
     <div class="chip">機種：<b>SA0P10 / 31.5"</b></div>
     <div class="chip">APP：<b>nSignage 1.5.5 (10505)</b></div>
     <div class="chip">來源：<b>logcat.1 (33MB)</b></div>
+    <div class="chip">起點：<b>客戶 App watchdog 自殺</b></div>
     <div class="chip">核心原因：<b>SPI/DA 跨 process 競爭 + 版本讀取失敗誤判</b></div>
   </div>
 </div>
@@ -108,16 +109,44 @@
 
   <div class="card">
     <h4 style="color:var(--green)">▎最終判斷</h4>
-    <p>這<strong>不是</strong> DA 韌體真的過舊，也<strong>不是</strong> <span class="mono">PackageName</span> / <span class="mono">ActivityName</span> 設定值本身有錯。真正的失敗鏈為：</p>
+    <p>這<strong>不是</strong> DA 韌體真的過舊，也<strong>不是</strong> <span class="mono">PackageName</span> / <span class="mono">ActivityName</span> 設定值本身有錯。整條失敗鏈的<strong>起點在客戶 app，不在 nSignage</strong>：</p>
     <ul style="margin-top:6px">
       <li>nSignage 依 config 拉起客戶 app <span class="mono">com.idroid.epdplayerv2</span> 後自行退出。</li>
-      <li>客戶 app 被 <span class="mono">signal 9 (SIGKILL)</span> 殺掉，Android 自動把 nSignage 重新拉回前景。</li>
-      <li>nSignage 開始 <span class="mono">initDASpi()</span> / <span class="mono">initEpd()</span>，但客戶 app 同時被 AutoStartService 重新拉起。</li>
-      <li>客戶 app 也使用 signage SDK，在 nSignage init 完 0.4 秒後呼叫 <span class="mono">uninitEpd()</span>，兩個 process 並行操作<strong>同一組 SPI</strong>。</li>
+      <li><strong>客戶 app 自家的 <span class="mono">ScheduleHealthMonitor</span> watchdog 判定「調度系統已閒置超過 120 秒」，呼叫 <span class="mono">Process.killProcess(myPid())</span> 自殺（SIGKILL 是它自己發的，不是系統回收）。</strong></li>
+      <li>它的「自我重啟」實作有缺陷：先 <span class="mono">startActivity()</span> 再立刻 <span class="mono">killProcess()</span>，剛啟動的 Activity 隨 process 一起死，重啟失敗。</li>
+      <li>前景 Activity 消失，Android 回退 resume <strong>HOME</strong> —— 而 HOME 就是 nSignage → nSignage 被拉回並開始 <span class="mono">initDASpi()</span> / <span class="mono">initEpd()</span>。</li>
+      <li>同時系統重啟客戶 app 的 <span class="mono">AutoStartService</span>，客戶 app 1 秒後復活，在 nSignage init 完 0.4 秒後呼叫 <span class="mono">uninitEpd()</span>，兩個 process 並行操作<strong>同一組 SPI</strong>。</li>
       <li>DA 進入 not-ready 狀態，nSignage 讀取版本時發生 <span class="mono">DA_GetStatus GetRdyTimeout</span>。</li>
       <li><span class="mono">DA_VERSION</span> 回傳空值 <span class="mono">"0"</span>，<span class="mono">checkIfUpdateDA()</span> 無法分辨「讀取失敗」與「韌體過舊」，誤判為需更新韌體。</li>
       <li>顯示錯誤畫面後執行 <span class="mono">runPowerOffUpdateEpdBuffer()</span>，直接關機。</li>
     </ul>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎責任歸屬</h4>
+    <table class="tb">
+      <tr><th>環節</th><th>歸屬</th><th>說明</th></tr>
+      <tr>
+        <td>調度器排定後不執行 → watchdog 自殺</td>
+        <td><span class="b b-del">客戶 App</span></td>
+        <td>整條鏈的起點。<span class="mono">quick_cycle_automation</span> 規則排定後 2 分鐘內未執行。</td>
+      </tr>
+      <tr>
+        <td>自我重啟實作不可靠</td>
+        <td><span class="b b-del">客戶 App</span></td>
+        <td><span class="mono">startActivity()</span> 後立刻 <span class="mono">killProcess()</span>，導致重啟失敗並把 HOME (nSignage) 叫回來。</td>
+      </tr>
+      <tr>
+        <td>兩個 process 同時操作 SPI</td>
+        <td><span class="b b-new">雙方 / SDK</span></td>
+        <td>SDK 只有 process 內 mutex，無跨 process 保護。</td>
+      </tr>
+      <tr>
+        <td>DA 讀取失敗被誤判為韌體過舊並關機</td>
+        <td><span class="b b-mod">nSignage</span></td>
+        <td>我方應修正的防呆缺口，可立即止血。</td>
+      </tr>
+    </table>
   </div>
 </div>
 
@@ -181,13 +210,45 @@ EPD_INIT (nSignage 1982)
         <div class="tl-date">08:57:06</div>
         <div class="tl-msg">nSignage (1200) <span class="mono">exited cleanly (0)</span>，交棒後自行退出。</div>
       </div>
-      <div class="tl-item warn">
-        <div class="tl-date">08:59:20</div>
-        <div class="tl-msg">客戶 app (1764) 被 <span class="mono">signal 9 (SIGKILL)</span> 殺掉（<span class="mono">fg TOP</span>）。</div>
+      <div class="tl-item">
+        <div class="tl-date">08:57:17.750</div>
+        <div class="tl-msg">客戶 app 調度器啟動成功，<strong>活躍規則 4 條</strong>（含「每分鐘快速循環 <span class="mono">quick_cycle_automation</span>」、「初始完整檢查」），全部顯示 <span class="mono">調度已安排</span>。</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-date">08:57:17.752</div>
+        <div class="tl-msg"><span class="mono">EPDPlayer_ScheduleHealthMonitor</span> 啟動（TID 1800），進入 60 秒寬限期。</div>
       </div>
       <div class="tl-item warn">
-        <div class="tl-date">08:59:20</div>
-        <div class="tl-msg">Android 把 nSignage 重新拉回前景 (PID 1982)，<span class="mono">08:59:21.014</span> 開始 <span class="mono">NtxSpiUtility.initDASpi()</span> / <span class="mono">initEpd(false)</span>。</div>
+        <div class="tl-date">08:57:21 ~ 08:59:17</div>
+        <div class="tl-msg"><strong>整整 2 分鐘，app 沒有任何調度規則執行的 log</strong>。「每分鐘快速循環」一次都沒跑。</div>
+      </div>
+      <div class="tl-item warn">
+        <div class="tl-date">08:58:17.754</div>
+        <div class="tl-msg"><span class="mono">寬限期結束，開始監控調度健康狀態</span></div>
+      </div>
+      <div class="tl-item bad">
+        <div class="tl-date">08:59:17.766</div>
+        <div class="tl-msg"><span class="mono">調度系統已閒置超過 120 秒</span> → <span class="mono">調度系統異常，準備重啟應用</span> → <span class="mono">調度系統失敗次數: 6</span>（累計第 6 次）。</div>
+      </div>
+      <div class="tl-item bad">
+        <div class="tl-date">08:59:19.778</div>
+        <div class="tl-msg"><span class="mono">執行應用重啟...</span> → 呼叫 <span class="mono">startActivity()</span> 拉起自己的 LAUNCHER（<span class="mono">CyberpunkLoadingActivity</span>）。</div>
+      </div>
+      <div class="tl-item bad">
+        <div class="tl-date">08:59:19.945</div>
+        <div class="tl-msg"><strong><span class="mono">Process : Sending signal. PID: 1764 SIG: 9</span></strong> — 發訊者 PID 1764 = 被殺者 PID 1764，TID 1800 正是 watchdog 執行緒。<strong>客戶 app 呼叫 <span class="mono">Process.killProcess(myPid())</span> 自殺</strong>，非系統回收。</div>
+      </div>
+      <div class="tl-item bad">
+        <div class="tl-date">08:59:20.011</div>
+        <div class="tl-msg">剛啟動的 <span class="mono">CyberpunkLoadingActivity</span> 隨 process 一起死（<span class="mono">WIN DEATH</span>）—— <strong>自我重啟失敗</strong>。</div>
+      </div>
+      <div class="tl-item warn">
+        <div class="tl-date">08:59:20.020</div>
+        <div class="tl-msg">前景 Activity 消失，Android 回退 resume <strong>HOME</strong>（= nSignage），並排定 <span class="mono">Scheduling restart of crashed service .../.service.AutoStartService in 1000ms</span>。</div>
+      </div>
+      <div class="tl-item warn">
+        <div class="tl-date">08:59:20 ~ 21.014</div>
+        <div class="tl-msg">nSignage 被拉回前景 (PID 1982)，開始 <span class="mono">NtxSpiUtility.initDASpi()</span> / <span class="mono">initEpd(false)</span>。</div>
       </div>
       <div class="tl-item bad">
         <div class="tl-date">08:59:21.448</div>
@@ -223,6 +284,24 @@ EPD_INIT (nSignage 1982)
   <div class="card" style="padding:0;overflow-x:auto">
     <table class="tb">
       <tr><th>時間 / 階段</th><th>來源</th><th>重點訊息</th><th>判斷</th></tr>
+      <tr>
+        <td class="mono">08:59:17.766</td>
+        <td><span class="b b-del">客戶 App</span></td>
+        <td><span class="mono">調度系統已閒置超過 120 秒</span><br><span class="mono">調度系統異常，準備重啟應用</span><br><span class="mono">調度系統失敗次數: 6</span></td>
+        <td>客戶 app 自家 watchdog 判定調度系統死掉。這是整條失敗鏈的起點，且已累計發生 6 次。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:59:19.945</td>
+        <td><span class="b b-del">客戶 App</span></td>
+        <td><span class="mono">Process : Sending signal. PID: 1764 SIG: 9</span><br>（發訊 PID 1764 = 被殺 PID 1764，TID 1800 = watchdog thread）</td>
+        <td><strong>SIGKILL 是客戶 app 自己發的</strong>（<span class="mono">Process.killProcess(myPid())</span>），非 LMK、非 ANR、非 nSignage、非 system_server。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:59:20.011</td>
+        <td><span class="b b-aosp">WindowManager</span></td>
+        <td><span class="mono">WIN DEATH: Window{... CyberpunkLoadingActivity}</span><br><span class="mono">Scheduling restart of crashed service ... AutoStartService in 1000ms</span></td>
+        <td>自我重啟失敗（新 Activity 隨 process 一起死），系統改 resume HOME（nSignage），並在 1 秒後重啟客戶 app 的 service。</td>
+      </tr>
       <tr>
         <td class="mono">08:59:21.448</td>
         <td><span class="b b-del">客戶 App</span></td>
@@ -305,6 +384,27 @@ EPD_INIT (nSignage 1982)
   </div>
 
   <div class="card">
+    <h4 style="color:var(--amber)">▎根本原因（起點）：客戶 App 的 watchdog 自殺</h4>
+    <p><span class="mono">EPDPlayer_ScheduleHealthMonitor</span> 是客戶 app 自帶的健康監控。它在調度器閒置超過 120 秒時判定系統異常，並執行「自我重啟」：</p>
+    <div class="code"><pre>08:57:17.750  調度器啟動完成，活躍規則: 4      ← 規則排定成功
+08:57:17.752  啟動調度健康監控                  ← watchdog 上線 (TID 1800)
+08:57:21 ~ 08:59:17                            ← 2 分鐘內「零」調度執行 log
+08:58:17.754  寬限期結束，開始監控調度健康狀態
+08:59:17.766  調度系統已閒置超過 120 秒
+08:59:17.767  調度系統異常，準備重啟應用
+08:59:17.777  調度系統失敗次數: 6              ← 累計第 6 次
+08:59:19.778  執行應用重啟...
+08:59:19.945  Process : Sending signal. PID: 1764 SIG: 9   ← 自殺</pre></div>
+    <p style="margin-top:8px">關鍵在於：「每分鐘快速循環」(<span class="mono">quick_cycle_automation</span>) 規則明明顯示 <span class="mono">調度已安排</span>，但排定後 2 分鐘內<strong>一次都沒有執行</strong>。這是觸發 watchdog 的唯一條件，屬於客戶 app 內部問題，需由客戶端釐清。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎根本原因（放大）：自我重啟實作不可靠</h4>
+    <p>客戶 app 的重啟流程是「<span class="mono">startActivity()</span> → 立刻 <span class="mono">killProcess(myPid())</span>」。新啟動的 Activity 還沒完成建立就隨 process 一起被殺（log 中的 <span class="mono">WIN DEATH</span>），<strong>重啟實際上失敗了</strong>。</p>
+    <p style="margin-top:8px">後果是 Android 找不到前景 Activity，回退去 resume <strong>HOME</strong> —— 而 HOME 正是 nSignage。同時系統又以 <span class="mono">Scheduling restart of crashed service</span> 在 1 秒後把客戶 app 的 <span class="mono">AutoStartService</span> 拉回。<strong>這正是造成「兩個 app 同時活著、同時搶 SPI」的直接機制</strong>。</p>
+  </div>
+
+  <div class="card">
     <h4 style="color:var(--amber)">▎根本原因：SPI / DA 被兩個 process 同時存取</h4>
     <p>客戶 app <span class="mono">com.idroid.epdplayerv2</span> 也整合了 signage SDK（log 中可見其專屬的 <span class="mono">signageSDK: SlideShowService</span>），會直接對 SPI 下 <span class="mono">uninitEpd()</span> / <span class="mono">epd_init</span>。當它與 nSignage 同時存活時，兩者對同一顆 DA 下指令，導致 DA 狀態機被打亂而進入 not-ready。</p>
     <p style="margin-top:8px">目前 SPI 存取只有 process 內的 <span class="mono">DA_AppLockMutex</span>，<strong>沒有跨 process 的互斥保護</strong>。</p>
@@ -312,7 +412,12 @@ EPD_INIT (nSignage 1982)
 
   <div class="card">
     <h4 style="color:var(--amber)">▎根本原因：交棒模型不穩</h4>
-    <p>設定 <span class="mono">PackageName</span> / <span class="mono">ActivityName</span> 後，nSignage 拉起客戶 app 便自行退出。但 nSignage 是 launcher/home，一旦客戶 app 被系統回收（本次為 <span class="mono">signal 9</span>），Android 會把 nSignage 拉回前景，而客戶 app 的 AutoStartService 也會同時把自己拉起 —— <strong>兩者同時活著並各自 init SPI</strong>。這條路徑在正常交棒時不會發生，只在客戶 app 異常退出時觸發，因此呈現為偶發性問題。</p>
+    <p>設定 <span class="mono">PackageName</span> / <span class="mono">ActivityName</span> 後，nSignage 拉起客戶 app 便自行退出。但 nSignage 是 launcher/home，一旦客戶 app 異常退出（本次為它自己的 watchdog 自殺），Android 會把 nSignage 拉回前景，而客戶 app 的 AutoStartService 也會同時把自己拉起 —— <strong>兩者同時活著並各自 init SPI</strong>。這條路徑在正常交棒時不會發生，只在客戶 app 異常退出時觸發，因此呈現為偶發性問題。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--purple)">▎發生頻率</h4>
+    <p>8 份 logcat 中有 <strong>3 份</strong>（<span class="mono">logcat.1</span> / <span class="mono">logcat.6</span> / <span class="mono">logcat.8</span>）出現 <span class="mono">執行應用重啟</span>；且 app 內部計數器已累計到 <span class="mono">調度系統失敗次數: 6</span>。這是<strong>反覆發生</strong>的問題，不是單次偶發。只是並非每次自殺都剛好撞上 nSignage 的 DA init 時間窗，所以不是每次都會關機。</p>
   </div>
 </div>
 
@@ -330,6 +435,21 @@ EPD_INIT (nSignage 1982)
         <td>PackageName / ActivityName 設定值錯誤</td>
         <td><span class="b b-del">非主因</span></td>
         <td><span class="mono">checkIfUpdateDA()</span> 在 <span class="mono">getConfigFile()</span> 之前執行（2797 行 vs 2815 行），判斷當下根本還沒讀到這兩個欄位。它是<strong>間接觸發條件</strong>，不是直接原因。</td>
+      </tr>
+      <tr>
+        <td>LowMemoryKiller 殺掉客戶 app</td>
+        <td><span class="b b-del">非主因</span></td>
+        <td>log 中無 LMK / <span class="mono">kill</span> 相關訊息，且 SIGKILL 的發訊者就是被殺者自己（PID 1764 → PID 1764）。</td>
+      </tr>
+      <tr>
+        <td>ANR / Native crash 導致客戶 app 死亡</td>
+        <td><span class="b b-del">非主因</span></td>
+        <td>無 ANR、無 tombstone、無 <span class="mono">FATAL EXCEPTION</span>。是 app 主動呼叫 <span class="mono">Process.killProcess(myPid())</span>。</td>
+      </tr>
+      <tr>
+        <td>nSignage 主動殺掉客戶 app</td>
+        <td><span class="b b-del">非主因</span></td>
+        <td>SIGKILL 發生於 <span class="mono">08:59:19.945</span>，而 nSignage (PID 1200) 早在 <span class="mono">08:57:06</span> 就已退出，當下根本不存在。</td>
       </tr>
       <tr>
         <td>外接 SD 卡 / update_da_fw.json</td>
@@ -386,7 +506,16 @@ EPD_INIT (nSignage 1982)
     <ul style="margin-top:6px">
       <li>nSignage 拉起客戶 app 前，確實釋放 SPI 並確保自己不會被系統重新拉回前景。</li>
       <li>或反過來：nSignage 常駐並保有 SPI，客戶 app 不直接碰 SPI，改由 nSignage 代為刷圖。</li>
-      <li>需與客戶確認 <span class="mono">com.idroid.epdplayerv2</span> 為何被 <span class="mono">signal 9</span> 殺掉（記憶體不足？ANR？），這是整條鏈的起點。</li>
+    </ul>
+  </div>
+
+  <div class="card" style="border-color:var(--amber)">
+    <h4 style="color:var(--amber)">▎需客戶端處理（整條鏈的起點）</h4>
+    <ul style="margin-top:6px">
+      <li><strong>查明 <span class="mono">quick_cycle_automation</span> 為何排定後不執行。</strong>規則顯示 <span class="mono">調度已安排</span>，但 2 分鐘內零執行紀錄。這是 <span class="mono">ScheduleHealthMonitor</span> 觸發的唯一條件，也是整起問題的源頭。可先確認調度是走 <span class="mono">AlarmManager</span>、<span class="mono">Handler</span> 還是 <span class="mono">WorkManager</span>，以及是否受 Doze / 精確鬧鐘權限影響。</li>
+      <li><strong>修正自我重啟的實作。</strong>目前「<span class="mono">startActivity()</span> → 立刻 <span class="mono">killProcess()</span>」會讓新 Activity 隨 process 一起死，重啟必定失敗並把 HOME 叫回前景。建議改用 <span class="mono">AlarmManager.setExact()</span> 排定延遲重啟後再 <span class="mono">killProcess()</span>，或直接改為重置調度器而不殺 process。</li>
+      <li><strong>watchdog 加上退避機制。</strong>目前失敗次數已累計到 6 次仍持續自殺重啟，形成循環。建議連續失敗達門檻後停止自殺，改為記錄或降級運作。</li>
+      <li><strong>app 結束前應釋放 SPI。</strong>若仍需自我重啟，務必在 <span class="mono">killProcess()</span> 前呼叫 <span class="mono">uninitEpd()</span> 並確認已交還 SPI，避免留下半初始化的 DA 狀態。</li>
     </ul>
   </div>
 </div>
@@ -408,18 +537,37 @@ EPD_INIT (nSignage 1982)
     <h4 style="color:var(--cyan)">▎檢查 3：確認客戶 app 被殺與 nSignage 被重拉的時機</h4>
     <div class="code"><pre>adb logcat -b all | grep -E "Start proc|has died|exited due to signal|uninitEpd|initDASpi"</pre></div>
   </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 4：追蹤客戶 app 的 watchdog 自殺（整條鏈起點）</h4>
+    <div class="code"><pre>adb logcat -b all | grep -E "ScheduleHealthMonitor|執行應用重啟|Sending signal.*SIG: 9|AutomationScheduler"</pre></div>
+    <p style="margin-top:8px">確認要點：<span class="mono">Sending signal. PID: X SIG: 9</span> 中的 PID 若與被殺的 PID 相同，即為 app 自殺而非系統回收。</p>
+  </div>
 </div>
 
 <div class="sec">
   <div class="sec-t"><span class="n">9</span> 最終結論</div>
   <div class="card">
     <p>目前 log 已可確認：<strong>DA 韌體並沒有問題，是 nSignage 讀不到 DA 版本後誤判成「韌體過舊」而主動關機</strong>。同一台機器六次開機，五次都正確讀到 <span class="mono">0.1.0.23_31.5 (Apr 1 2026)</span>，僅失敗的那次因 <span class="mono">DA_GetStatus GetRdyTimeout</span> 讀回空值 <span class="mono">"0"</span>。</p>
-    <p style="margin-top:8px">而通訊失敗的成因是：設定 <span class="mono">PackageName</span> / <span class="mono">ActivityName</span> 後，客戶 app 與 nSignage 在異常重啟情境下<strong>同時存活並各自操作同一組 SPI</strong>，DA 因此進入 not-ready。</p>
+
+    <p style="margin-top:8px">而完整的因果鏈，<strong>起點在客戶 app，不在 nSignage</strong>：</p>
+    <div class="code"><pre>客戶 app 調度器排定規則卻不執行
+    → 自家 ScheduleHealthMonitor 判定異常 (閒置 &gt; 120s)
+    → Process.killProcess(myPid()) 自殺 (SIG 9)
+    → 自我重啟失敗 (startActivity 後立刻 kill)
+    → Android 回退 resume HOME = nSignage
+    → nSignage 開始 initDASpi() / initEpd()
+    → 客戶 app 的 AutoStartService 1 秒後被系統拉回
+    → 客戶 app 呼叫 uninitEpd()，兩 process 搶同一組 SPI
+    → DA not-ready → GetRdyTimeout → DA_VERSION:0
+    → nSignage checkIfUpdateDA() 誤判為韌體過舊
+    → 顯示 "Please update DA firmware." → 關機</pre></div>
+
     <p style="margin-top:8px">優先處理順序建議為：</p>
     <ul style="margin-top:6px">
-      <li>先在 nSignage 補上 DA 版本讀取失敗的防呆與重試（可立即止血，避免誤判關機）。</li>
-      <li>再與客戶確認 <span class="mono">com.idroid.epdplayerv2</span> 被 SIGKILL 的原因。</li>
-      <li>最後從架構面解決 SPI 跨 process 競爭，將 DA 存取集中化。</li>
+      <li><strong>我方（可立即止血）：</strong>在 nSignage 補上 DA 版本讀取失敗的防呆與重試。即使客戶 app 行為異常，DA 讀不到版本也不該誤判成韌體過舊並關機。</li>
+      <li><strong>客戶端（治本）：</strong>查明 <span class="mono">quick_cycle_automation</span> 為何排定後不執行，並修正 <span class="mono">ScheduleHealthMonitor</span> 的自我重啟實作。這是整條鏈的源頭，不解決則問題會持續復發（已累計 6 次）。</li>
+      <li><strong>架構面（長期）：</strong>解決 SPI 跨 process 競爭，將 DA 存取集中化，避免任何 app 能單方面 <span class="mono">uninitEpd()</span> 破壞他人狀態。</li>
     </ul>
     <p style="margin-top:8px">另註：客戶機器目前運行 <strong>nSignage 1.5.5 (versionCode 10505)</strong>，而 repo 主線已至 <strong>1.5.7</strong>。回覆客戶前建議先確認 1.5.7 是否已含相關修正。</p>
   </div>
