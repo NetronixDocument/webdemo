@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DA ver:0 誤判關機問題解析報告</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+  :root {
+    --bg:#0f1117;--s1:#1a1d27;--s2:#232733;--s3:#2a2e3d;
+    --bd:#2e3345;--tx:#e2e4eb;--dim:#8b90a0;
+    --blue:#6c8cff;--blue-d:rgba(108,140,255,.12);
+    --cyan:#22d3ee;--cyan-d:rgba(34,211,238,.12);
+    --green:#4ade80;--green-d:rgba(74,222,128,.12);
+    --amber:#fbbf24;--amber-d:rgba(251,191,36,.12);
+    --red:#f87171;--red-d:rgba(248,113,113,.12);
+    --purple:#a78bfa;--purple-d:rgba(167,139,250,.12);
+    --pink:#f472b6;--pink-d:rgba(244,114,182,.12);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Noto Sans TC','Inter',sans-serif;background:var(--bg);color:var(--tx);line-height:1.7;padding:40px 20px}
+  .c{max-width:900px;margin:0 auto}
+  .hdr{text-align:center;margin-bottom:48px;padding-bottom:28px;border-bottom:1px solid var(--bd)}
+  .hdr h1{font-size:26px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+  .hdr .sub{color:var(--dim);font-size:13px}
+  .hdr .meta{display:flex;gap:12px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+  .hdr .chip{background:var(--s1);border:1px solid var(--bd);border-radius:6px;padding:4px 14px;font-size:12px;color:var(--dim)}
+  .hdr .chip b{color:var(--tx)}
+  .sec{margin-bottom:40px}
+  .sec-t{font-size:17px;font-weight:700;margin-bottom:14px;padding-left:12px;border-left:3px solid var(--blue);display:flex;align-items:center;gap:8px}
+  .sec-t .n{background:var(--blue);color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+  .card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:18px 22px;margin-bottom:10px}
+  .card h4{font-size:14px;font-weight:600;margin-bottom:6px}
+  .card p,.card li{font-size:13.5px;color:var(--dim)}
+  .card ul{padding-left:18px}
+  .card li{margin-bottom:3px}
+  .b{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:4px;letter-spacing:.3px;vertical-align:middle;white-space:nowrap}
+  .b-aosp{background:var(--green-d);color:var(--green)}
+  .b-ntx{background:var(--purple-d);color:var(--purple)}
+  .b-hal{background:var(--cyan-d);color:var(--cyan)}
+  .b-new{background:var(--amber-d);color:var(--amber)}
+  .b-mod{background:var(--blue-d);color:var(--blue)}
+  .b-del{background:var(--red-d);color:var(--red)}
+  .tb{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  .tb th{text-align:left;padding:8px 12px;background:var(--s2);color:var(--dim);font-weight:600;border-bottom:1px solid var(--bd)}
+  .tb td{padding:8px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
+  .tb tr:last-child td{border-bottom:none}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:12px}
+  .tl{position:relative;padding-left:28px;margin:16px 0}
+  .tl::before{content:'';position:absolute;left:9px;top:4px;bottom:4px;width:2px;background:var(--bd)}
+  .tl-item{position:relative;margin-bottom:14px}
+  .tl-item::before{content:'';position:absolute;left:-22px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--blue);border:2px solid var(--bg)}
+  .tl-item.first::before{background:var(--green)}
+  .tl-item.warn::before{background:var(--amber)}
+  .tl-item.bad::before{background:var(--red)}
+  .tl-item.last::before{background:var(--cyan)}
+  .tl-date{font-size:11px;color:var(--dim);font-family:'JetBrains Mono',monospace}
+  .tl-msg{font-size:13px;margin-top:2px}
+  .arch{display:grid;gap:10px;margin:16px 0}
+  .arch-3{grid-template-columns:1fr 1fr 1fr}
+  .arch-2{grid-template-columns:1fr 1fr}
+  .arch-box{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;text-align:center}
+  .arch-box .lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .arch-box .name{font-size:13px;font-weight:600}
+  .arch-box .desc{font-size:11px;color:var(--dim);margin-top:4px}
+  .arch-box.highlight{border-color:var(--purple);box-shadow:0 0 12px rgba(167,139,250,.1)}
+  .arch-box.highlight2{border-color:var(--cyan);box-shadow:0 0 12px rgba(34,211,238,.1)}
+  .arch-box.danger{border-color:var(--red);box-shadow:0 0 12px rgba(248,113,113,.1)}
+  .arch-arrow{text-align:center;font-size:18px;color:var(--dim);padding:4px 0}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;padding:10px 16px;background:var(--s1);border-radius:8px;border:1px solid var(--bd)}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+  .legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+  .code{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;overflow-x:auto;margin-top:10px}
+  .code pre{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.75;color:var(--tx);white-space:pre-wrap}
+  .note{font-size:11px;color:var(--dim);text-align:center;margin-top:24px}
+  @media(max-width:640px){
+    .arch-3,.arch-2{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="c">
+
+<div class="hdr">
+  <h1>DA ver:0 誤判關機問題解析報告</h1>
+  <div class="sub">31.5" SOC 機種開機顯示「DA ver:0. Please update DA firmware.」並直接關機的 log 分析</div>
+  <div class="meta">
+    <div class="chip">機種：<b>SA0P10 / 31.5"</b></div>
+    <div class="chip">APP：<b>nSignage 1.5.5 (10505)</b></div>
+    <div class="chip">來源：<b>logcat.1 (33MB)</b></div>
+    <div class="chip">核心原因：<b>SPI/DA 跨 process 競爭 + 版本讀取失敗誤判</b></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">1</span> 問題摘要</div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> 直接失敗點</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div> 根本原因</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cyan)"></div> 建議修正方向</div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--red)">▎異常現象</h4>
+    <p>客戶在 <span class="mono">signage_configure.json</span> 設定 <span class="mono">PackageName</span> / <span class="mono">ActivityName</span> 後，機器開機時顯示 <strong>「DA ver:0. Please update DA firmware.」</strong>，沒有進入客戶自家的 app，接著直接關機。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--green)">▎最終判斷</h4>
+    <p>這<strong>不是</strong> DA 韌體真的過舊，也<strong>不是</strong> <span class="mono">PackageName</span> / <span class="mono">ActivityName</span> 設定值本身有錯。真正的失敗鏈為：</p>
+    <ul style="margin-top:6px">
+      <li>nSignage 依 config 拉起客戶 app <span class="mono">com.idroid.epdplayerv2</span> 後自行退出。</li>
+      <li>客戶 app 被 <span class="mono">signal 9 (SIGKILL)</span> 殺掉，Android 自動把 nSignage 重新拉回前景。</li>
+      <li>nSignage 開始 <span class="mono">initDASpi()</span> / <span class="mono">initEpd()</span>，但客戶 app 同時被 AutoStartService 重新拉起。</li>
+      <li>客戶 app 也使用 signage SDK，在 nSignage init 完 0.4 秒後呼叫 <span class="mono">uninitEpd()</span>，兩個 process 並行操作<strong>同一組 SPI</strong>。</li>
+      <li>DA 進入 not-ready 狀態，nSignage 讀取版本時發生 <span class="mono">DA_GetStatus GetRdyTimeout</span>。</li>
+      <li><span class="mono">DA_VERSION</span> 回傳空值 <span class="mono">"0"</span>，<span class="mono">checkIfUpdateDA()</span> 無法分辨「讀取失敗」與「韌體過舊」，誤判為需更新韌體。</li>
+      <li>顯示錯誤畫面後執行 <span class="mono">runPowerOffUpdateEpdBuffer()</span>，直接關機。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">2</span> 失敗事件流</div>
+  <div class="card">
+    <p style="margin-bottom:14px">兩個 process 搶用同一顆 DA 的核心架構：</p>
+
+    <div class="arch arch-3">
+      <div class="arch-box highlight">
+        <div class="lbl">Process A</div>
+        <div class="name">ntx.nsignage (1982)</div>
+        <div class="desc">SignageAAR<br>initDASpi() / initEpd()</div>
+      </div>
+      <div class="arch-box danger">
+        <div class="lbl">共用資源</div>
+        <div class="name">DA / EPD SPI</div>
+        <div class="desc">無跨 process 保護<br>→ GetRdyTimeout</div>
+      </div>
+      <div class="arch-box highlight2">
+        <div class="lbl">Process B</div>
+        <div class="name">com.idroid.epdplayerv2 (2011)</div>
+        <div class="desc">signageSDK<br>uninitEpd() / epd_init</div>
+      </div>
+    </div>
+
+    <div class="arch-arrow">↓</div>
+
+    <div class="code">
+      <pre>正常預期：
+EPD_INIT → DA_VERSION:0.1.0.23_31.5,0.1.007_31.5,Apr 1 2026
+        → checkIfUpdateDA: false
+        → getConfigFile() → 拉起客戶 app → 正常播放
+
+目前實際：
+EPD_INIT (nSignage 1982)
+    → 客戶 app 2011 同時 uninitEpd() / epd_init
+    → DA_GetStatus GetRdyTimeout          ← 全 log 唯一一次
+    → DA_VERSION:0  (Global.wifiMAC 同時為空)
+    → checkIfUpdateDA: true               ← 誤判
+    → "DA ver:0. Please update DA firmware."
+    → runPowerOffUpdateEpdBuffer() → 關機</pre>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">3</span> 關鍵事件時序（2026-07-13）</div>
+
+  <div class="card">
+    <div class="tl">
+      <div class="tl-item first">
+        <div class="tl-date">08:56:55</div>
+        <div class="tl-msg">nSignage (PID 1200) 正常開機，<span class="mono">DA_VERSION:0.1.0.23_31.5,...</span> → <span class="mono">checkIfUpdateDA: false</span>。此時一切正常。</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-date">08:57:05</div>
+        <div class="tl-msg">nSignage 依 <span class="mono">signage_configure.json</span> 拉起客戶 app <span class="mono">com.idroid.epdplayerv2</span> (PID 1764)。</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-date">08:57:06</div>
+        <div class="tl-msg">nSignage (1200) <span class="mono">exited cleanly (0)</span>，交棒後自行退出。</div>
+      </div>
+      <div class="tl-item warn">
+        <div class="tl-date">08:59:20</div>
+        <div class="tl-msg">客戶 app (1764) 被 <span class="mono">signal 9 (SIGKILL)</span> 殺掉（<span class="mono">fg TOP</span>）。</div>
+      </div>
+      <div class="tl-item warn">
+        <div class="tl-date">08:59:20</div>
+        <div class="tl-msg">Android 把 nSignage 重新拉回前景 (PID 1982)，<span class="mono">08:59:21.014</span> 開始 <span class="mono">NtxSpiUtility.initDASpi()</span> / <span class="mono">initEpd(false)</span>。</div>
+      </div>
+      <div class="tl-item bad">
+        <div class="tl-date">08:59:21.448</div>
+        <div class="tl-msg"><strong>客戶 app 又被 AutoStartService 拉起 (PID 2011)，呼叫 <span class="mono">NtxSpiUtility.uninitEpd()</span></strong> — 把 nSignage 才剛初始化 0.4 秒的 SPI 拆掉，緊接著 <span class="mono">08:59:21.450</span> 跑自己的 <span class="mono">epd_init</span>。</div>
+      </div>
+      <div class="tl-item bad">
+        <div class="tl-date">08:59:21 ~ 25</div>
+        <div class="tl-msg">兩個 process 並行操作同一組 SPI（此窗口內 PID 1982 有 227 行、PID 2011 有 202 行 SPI/DA log）。</div>
+      </div>
+      <div class="tl-item bad">
+        <div class="tl-date">08:59:47.885</div>
+        <div class="tl-msg"><span class="mono">[DA_GetStatus 280] GetRdyTimeout</span> — <strong>整份 33MB log 唯一一次</strong>。</div>
+      </div>
+      <div class="tl-item bad">
+        <div class="tl-date">08:59:48.219</div>
+        <div class="tl-msg"><span class="mono">DA_VERSION:0</span>，同時 <span class="mono">Global.wifiMAC:</span> 為空（兩者皆來自 DA，證實是讀取失敗而非韌體問題）。</div>
+      </div>
+      <div class="tl-item bad">
+        <div class="tl-date">08:59:48.234</div>
+        <div class="tl-msg"><span class="mono">checkIfUpdateDA result: true</span> → <span class="mono">The device should update DA firmware.</span></div>
+      </div>
+      <div class="tl-item last">
+        <div class="tl-date">08:59:54.740</div>
+        <div class="tl-msg"><span class="mono">Show 'Please update DA firmware.' &amp; power-off</span> → <span class="mono">enterShutdown reason=power_off_update</span> → 關機。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">4</span> 關鍵 log 證據</div>
+
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table class="tb">
+      <tr><th>時間 / 階段</th><th>來源</th><th>重點訊息</th><th>判斷</th></tr>
+      <tr>
+        <td class="mono">08:59:21.448</td>
+        <td><span class="b b-del">客戶 App</span></td>
+        <td><span class="mono">Java_ntx_signage_spi_NtxSpiUtility_uninitEpd</span><br><span class="mono">signageSDK: c.a(43): [epd_init]</span></td>
+        <td>客戶 app 在 nSignage init SPI 後 0.4 秒把 EPD uninit 掉並自行 init，這是資源競爭的起點。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:59:21 ~ 25</td>
+        <td><span class="b b-ntx">雙 Process</span></td>
+        <td>PID 1982: 227 行 SPI log<br>PID 2011: 202 行 SPI log</td>
+        <td>兩個 process 在同一時間窗口對同一組 SPI 下指令，DA 狀態機被打亂。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:59:47.885</td>
+        <td><span class="b b-hal">ntxSpi</span></td>
+        <td><span class="mono">[DA_GetStatus 280] GetRdyTimeout: Er</span><br><span class="mono">DaNotRdy</span></td>
+        <td>DA 進入 not-ready，SPI 握手超時。全份 log 僅此一次，與失敗開機一對一對應。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:59:48.219</td>
+        <td><span class="b b-ntx">MainActivity</span></td>
+        <td><span class="mono">DA_VERSION:0</span><br><span class="mono">Global.wifiMAC:</span>（空）</td>
+        <td>DA 版本與 Wi-Fi MAC 皆來自 DA，同時取得失敗 → 確認是通訊失敗，非韌體過舊。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:59:48.234</td>
+        <td><span class="b b-del">誤判點</span></td>
+        <td><span class="mono">checkIfUpdateDA result: true</span><br><span class="mono">The device should update DA firmware.</span></td>
+        <td><span class="mono">"0".split(",")</span> 長度 1 &lt; 3，被當成韌體過舊。程式無防呆。</td>
+      </tr>
+      <tr>
+        <td class="mono">08:59:54.740</td>
+        <td><span class="b b-del">關機</span></td>
+        <td><span class="mono">Show 'Please update DA firmware.' &amp; power-off</span><br><span class="mono">CommandGate.enterShutdown reason=power_off_update</span></td>
+        <td>顯示錯誤畫面後直接進入關機流程，未給重試機會。</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top:10px">
+    <h4 style="color:var(--green)">▎六次開機對照（同一份 log）</h4>
+    <div class="code"><pre>00:00:51  DA_VERSION:0.1.0.23_31.5,...  checkIfUpdateDA: false   ✅
+08:56:55  DA_VERSION:0.1.0.23_31.5,...  checkIfUpdateDA: false   ✅
+08:59:48  DA_VERSION:0                  checkIfUpdateDA: true    ❌ 關機
+09:12:40  DA_VERSION:0.1.0.23_31.5,...  checkIfUpdateDA: false   ✅
+09:42:05  DA_VERSION:0.1.0.23_31.5,...  checkIfUpdateDA: false   ✅
+09:46:41  DA_VERSION:0.1.0.23_31.5,...  checkIfUpdateDA: false   ✅</pre></div>
+    <p style="margin-top:8px">同一台機器、同一顆 DA，六次開機只有一次讀不到版本。若韌體真的過舊，六次都該失敗。這證明是<strong>偶發的通訊失敗</strong>，不是韌體版本問題。</p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">5</span> Root Cause 分析</div>
+
+  <div class="card">
+    <h4 style="color:var(--red)">▎直接原因：checkIfUpdateDA() 無法區分「讀取失敗」與「韌體過舊」</h4>
+    <p>位置：<span class="mono">MainActivity.java:7970-8004</span></p>
+    <div class="code"><pre>private boolean checkIfUpdateDA() {
+    boolean result = false;
+    try {
+        if (!TextUtils.isEmpty(RuntimeValue.DA_VERSION)) {
+            String[] daVerSplits = RuntimeValue.DA_VERSION.split(",");
+
+            if (daVerSplits.length &lt; 3) {
+                result = true;      // ← "0" 只切出 1 段，直接判定要更新韌體
+            }
+            ...
+        }
+    }
+    catch (Exception e) { ... }
+    ALog.info("checkIfUpdateDA result: " + result);
+    return result;
+}</pre></div>
+    <p style="margin-top:8px"><span class="mono">DA_VERSION</span> = <span class="mono">"0"</span> 不是空字串，通過 <span class="mono">isEmpty()</span> 檢查；<span class="mono">split(",")</span> 長度為 1，小於 3 → <span class="mono">result = true</span>。程式沒有任何機制辨識「這是一次失敗的讀取」。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--red)">▎直接原因：誤判後直接關機，無重試</h4>
+    <p>位置：<span class="mono">MainActivity.java:2797-2812</span>。判定為 true 後立即產生錯誤圖並呼叫 <span class="mono">mEpdController.runPowerOffUpdateEpdBuffer()</span>，沒有重試 DA init 的機會，使用者只能看到錯誤畫面與關機。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎根本原因：SPI / DA 被兩個 process 同時存取</h4>
+    <p>客戶 app <span class="mono">com.idroid.epdplayerv2</span> 也整合了 signage SDK（log 中可見其專屬的 <span class="mono">signageSDK: SlideShowService</span>），會直接對 SPI 下 <span class="mono">uninitEpd()</span> / <span class="mono">epd_init</span>。當它與 nSignage 同時存活時，兩者對同一顆 DA 下指令，導致 DA 狀態機被打亂而進入 not-ready。</p>
+    <p style="margin-top:8px">目前 SPI 存取只有 process 內的 <span class="mono">DA_AppLockMutex</span>，<strong>沒有跨 process 的互斥保護</strong>。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--amber)">▎根本原因：交棒模型不穩</h4>
+    <p>設定 <span class="mono">PackageName</span> / <span class="mono">ActivityName</span> 後，nSignage 拉起客戶 app 便自行退出。但 nSignage 是 launcher/home，一旦客戶 app 被系統回收（本次為 <span class="mono">signal 9</span>），Android 會把 nSignage 拉回前景，而客戶 app 的 AutoStartService 也會同時把自己拉起 —— <strong>兩者同時活著並各自 init SPI</strong>。這條路徑在正常交棒時不會發生，只在客戶 app 異常退出時觸發，因此呈現為偶發性問題。</p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">6</span> 非主要原因排除</div>
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table class="tb">
+      <tr><th>項目</th><th>判斷</th><th>原因</th></tr>
+      <tr>
+        <td>DA 韌體真的過舊</td>
+        <td><span class="b b-del">非主因</span></td>
+        <td>同一台機器六次開機，五次都正確讀到 <span class="mono">0.1.0.23_31.5 / Apr 1 2026</span>，遠新於門檻 <span class="mono">2024/12/20</span>。</td>
+      </tr>
+      <tr>
+        <td>PackageName / ActivityName 設定值錯誤</td>
+        <td><span class="b b-del">非主因</span></td>
+        <td><span class="mono">checkIfUpdateDA()</span> 在 <span class="mono">getConfigFile()</span> 之前執行（2797 行 vs 2815 行），判斷當下根本還沒讀到這兩個欄位。它是<strong>間接觸發條件</strong>，不是直接原因。</td>
+      </tr>
+      <tr>
+        <td>外接 SD 卡 / update_da_fw.json</td>
+        <td><span class="b b-del">非主因</span></td>
+        <td>log 顯示 <span class="mono">Ext-SD File update_da_fw.json not exist</span>、<span class="mono">EXTERNAL_SDCARD_PATH</span> 為空，<span class="mono">hasUpdateDa = false</span>，並未走 DA 更新流程。</td>
+      </tr>
+      <tr>
+        <td>RIL / ttyACM1 錯誤訊息</td>
+        <td><span class="b b-new">旁支噪音</span></td>
+        <td><span class="mono">opening base channel device - /dev/ttyACM1. retrying...</span> 全程持續出現（含正常開機），與 DA SPI 無關。</td>
+      </tr>
+      <tr>
+        <td>EPD 面板 / 渲染異常</td>
+        <td><span class="b b-new">旁支</span></td>
+        <td>錯誤畫面本身有成功渲染並刷出（<span class="mono">Eink_Spectra6_render</span> 正常完成），EPD 硬體無問題。</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">7</span> 建議修正方向</div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎修正 1（短期・低風險）：DA 版本讀取失敗防呆</h4>
+    <p>讀不到版本時不應視為「韌體過舊」。建議在 <span class="mono">checkIfUpdateDA()</span> 前置判斷：</p>
+    <div class="code"><pre>private boolean checkIfUpdateDA() {
+    // DA 通訊失敗時 DA_VERSION 會是 "0"，此時不可判定為韌體過舊
+    if (TextUtils.isEmpty(RuntimeValue.DA_VERSION)
+            || "0".equals(RuntimeValue.DA_VERSION.trim())) {
+        ALog.error("DA version read failed, skip firmware check.");
+        return false;
+    }
+    ...
+}</pre></div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎修正 2（短期）：DA init 失敗時重試而非關機</h4>
+    <p>在 <span class="mono">ACTION_EPD_INIT</span> 收到空的 <span class="mono">DA_VERSION</span> 或 <span class="mono">DA_MAC_ADDRESS</span> 時，重跑一次 DA init（建議上限 2～3 次）再做韌體判斷；仍失敗才顯示錯誤，且應顯示「DA 通訊失敗」而非「請更新韌體」，避免誤導現場人員。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎修正 3（根本）：DA / SPI 存取集中化</h4>
+    <ul style="margin-top:6px">
+      <li>將 DA / EPD 的 SPI 存取集中到單一 service（例如統一透過 <span class="mono">McuATCmdService</span> 代理），禁止多個 app 各自 <span class="mono">initDASpi()</span> / <span class="mono">uninitEpd()</span>。</li>
+      <li>或在 SDK 層加入<strong>跨 process 互斥</strong>（file lock / binder service），確保同一時間只有一個 process 能操作 SPI。</li>
+      <li>目前的 <span class="mono">DA_AppLockMutex</span> 僅限 process 內，無法防止本次情境。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎修正 4（根本）：釐清交棒生命週期</h4>
+    <ul style="margin-top:6px">
+      <li>nSignage 拉起客戶 app 前，確實釋放 SPI 並確保自己不會被系統重新拉回前景。</li>
+      <li>或反過來：nSignage 常駐並保有 SPI，客戶 app 不直接碰 SPI，改由 nSignage 代為刷圖。</li>
+      <li>需與客戶確認 <span class="mono">com.idroid.epdplayerv2</span> 為何被 <span class="mono">signal 9</span> 殺掉（記憶體不足？ANR？），這是整條鏈的起點。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">8</span> 建議檢查項目</div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 1：確認是否有兩個 process 同時操作 SPI</h4>
+    <div class="code"><pre>adb logcat -b all | grep -E "ntxSpi|signageSDK|SignageAAR" | awk '{print $3}' | sort | uniq -c</pre></div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 2：追蹤 DA 讀取失敗與誤判</h4>
+    <div class="code"><pre>adb logcat -b all | grep -E "GetRdyTimeout|DA_VERSION|checkIfUpdateDA|should update DA firmware"</pre></div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 3：確認客戶 app 被殺與 nSignage 被重拉的時機</h4>
+    <div class="code"><pre>adb logcat -b all | grep -E "Start proc|has died|exited due to signal|uninitEpd|initDASpi"</pre></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">9</span> 最終結論</div>
+  <div class="card">
+    <p>目前 log 已可確認：<strong>DA 韌體並沒有問題，是 nSignage 讀不到 DA 版本後誤判成「韌體過舊」而主動關機</strong>。同一台機器六次開機，五次都正確讀到 <span class="mono">0.1.0.23_31.5 (Apr 1 2026)</span>，僅失敗的那次因 <span class="mono">DA_GetStatus GetRdyTimeout</span> 讀回空值 <span class="mono">"0"</span>。</p>
+    <p style="margin-top:8px">而通訊失敗的成因是：設定 <span class="mono">PackageName</span> / <span class="mono">ActivityName</span> 後，客戶 app 與 nSignage 在異常重啟情境下<strong>同時存活並各自操作同一組 SPI</strong>，DA 因此進入 not-ready。</p>
+    <p style="margin-top:8px">優先處理順序建議為：</p>
+    <ul style="margin-top:6px">
+      <li>先在 nSignage 補上 DA 版本讀取失敗的防呆與重試（可立即止血，避免誤判關機）。</li>
+      <li>再與客戶確認 <span class="mono">com.idroid.epdplayerv2</span> 被 SIGKILL 的原因。</li>
+      <li>最後從架構面解決 SPI 跨 process 競爭，將 DA 存取集中化。</li>
+    </ul>
+    <p style="margin-top:8px">另註：客戶機器目前運行 <strong>nSignage 1.5.5 (versionCode 10505)</strong>，而 repo 主線已至 <strong>1.5.7</strong>。回覆客戶前建議先確認 1.5.7 是否已含相關修正。</p>
+  </div>
+</div>
+
+<div class="note">nSignage DA Firmware False-Alarm Analysis Report · SPI Cross-Process Contention · 2026-07-13</div>
+
+</div>
+</body>
+</html>
