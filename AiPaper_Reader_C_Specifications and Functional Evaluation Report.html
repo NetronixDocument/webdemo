@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>AiPaper Reader C 規格與功能評估報告</title>
+  <style>
+    :root {
+      --bg: #0d0f16;
+      --panel: #181b26;
+      --panel-2: #222634;
+      --border: #30364a;
+      --text: #f4f6fb;
+      --muted: #9aa6bd;
+      --blue: #55aaff;
+      --indigo: #6685ff;
+      --cyan: #2ed8f5;
+      --green: #39df8b;
+      --amber: #ffc52f;
+      --red: #ff6b72;
+      --purple: #b889ff;
+      --shadow: 0 14px 40px rgba(0, 0, 0, .18);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 50% -20%, rgba(59, 108, 255, .08), transparent 34rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    a {
+      color: var(--cyan);
+      text-decoration: none;
+    }
+
+    a:hover { text-decoration: underline; }
+
+    .container {
+      width: min(100% - 36px, 900px);
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 52px 0 28px;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--blue);
+      font-size: clamp(27px, 4.5vw, 38px);
+      letter-spacing: -.03em;
+      line-height: 1.25;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      margin: 10px auto 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .meta span {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: rgba(24, 27, 38, .92);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .meta strong { color: var(--text); }
+
+    .divider {
+      height: 1px;
+      margin: 26px 0 44px;
+      background: var(--border);
+    }
+
+    section {
+      margin: 0 0 39px;
+      scroll-margin-top: 18px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 14px;
+      padding-left: 14px;
+      border-left: 3px solid var(--indigo);
+      font-size: 18px;
+      line-height: 1.5;
+    }
+
+    .num {
+      display: inline-grid;
+      width: 24px;
+      height: 24px;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--indigo);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    .card {
+      padding: 20px 22px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: linear-gradient(145deg, rgba(25, 28, 39, .98), rgba(23, 26, 36, .98));
+      box-shadow: var(--shadow);
+    }
+
+    .card + .card { margin-top: 10px; }
+
+    .card h3,
+    .card h4 {
+      margin: 0 0 8px;
+      padding-left: 11px;
+      border-left: 3px solid var(--accent, var(--cyan));
+      color: var(--accent, var(--cyan));
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .card p { margin: 0; color: var(--muted); }
+    .card strong { color: var(--text); }
+
+    .accent-cyan { --accent: var(--cyan); }
+    .accent-green { --accent: var(--green); }
+    .accent-amber { --accent: var(--amber); }
+    .accent-red { --accent: var(--red); }
+    .accent-purple { --accent: var(--purple); }
+    .accent-blue { --accent: var(--blue); }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 10px;
+      padding: 11px 16px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      background: currentColor;
+    }
+
+    ul, ol {
+      margin: 8px 0 0;
+      padding-left: 20px;
+      color: var(--muted);
+    }
+
+    li + li { margin-top: 4px; }
+    li strong { color: var(--text); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .tile {
+      min-height: 118px;
+      padding: 15px 12px;
+      border: 1px solid var(--tile-color, var(--border));
+      border-radius: 9px;
+      background: var(--panel-2);
+      text-align: center;
+    }
+
+    .tile small {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .tile b {
+      display: block;
+      margin: 5px 0 2px;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .tile p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .tile.green { --tile-color: var(--green); }
+    .tile.cyan { --tile-color: var(--cyan); }
+    .tile.amber { --tile-color: var(--amber); }
+    .tile.red { --tile-color: var(--red); }
+    .tile.purple { --tile-color: var(--purple); }
+    .tile.blue { --tile-color: var(--blue); }
+
+    .arrow {
+      margin: 8px 0;
+      color: var(--muted);
+      text-align: center;
+      font-size: 20px;
+    }
+
+    .flow {
+      margin-top: 10px;
+      padding: 15px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--panel-2);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 690px;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    td {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    td:last-child { color: var(--muted); }
+    tr:last-child td { border-bottom: 0; }
+
+    .status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status.ok {
+      background: rgba(57, 223, 139, .13);
+      color: var(--green);
+    }
+
+    .status.partial {
+      background: rgba(102, 133, 255, .14);
+      color: #89a1ff;
+    }
+
+    .status.warn {
+      background: rgba(255, 197, 47, .14);
+      color: var(--amber);
+    }
+
+    .status.no {
+      background: rgba(255, 107, 114, .14);
+      color: var(--red);
+    }
+
+    .status.unknown {
+      background: rgba(184, 137, 255, .14);
+      color: var(--purple);
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .step {
+      min-height: 130px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--panel-2);
+    }
+
+    .step .step-no {
+      display: inline-grid;
+      width: 24px;
+      height: 24px;
+      margin-bottom: 8px;
+      place-items: center;
+      border-radius: 50%;
+      background: rgba(85, 170, 255, .16);
+      color: var(--blue);
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .step b {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .verdict {
+      padding: 22px;
+      border: 1px solid var(--green);
+      border-radius: 10px;
+      background: linear-gradient(145deg, rgba(34, 62, 53, .7), rgba(24, 31, 35, .9));
+    }
+
+    .verdict strong {
+      color: var(--green);
+      font-size: 16px;
+    }
+
+    .verdict p {
+      margin: 8px 0 0;
+      color: var(--text);
+    }
+
+    .refs {
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .refs ol { margin-top: 0; }
+    .refs li + li { margin-top: 6px; }
+
+    footer {
+      padding: 4px 0 56px;
+      color: #738099;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    .back-top {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: rgba(24, 27, 38, .92);
+      color: var(--blue);
+      box-shadow: var(--shadow);
+    }
+
+    @media (max-width: 780px) {
+      body { font-size: 14px; }
+      header { padding-top: 36px; }
+      .container { width: min(100% - 24px, 900px); }
+      .grid { grid-template-columns: repeat(2, 1fr); }
+      .steps { grid-template-columns: 1fr; }
+      .card { padding: 17px; }
+      .back-top { display: none; }
+    }
+
+    @media (max-width: 460px) {
+      .grid { grid-template-columns: 1fr; }
+      .meta { display: grid; }
+      .meta span { text-align: left; }
+    }
+
+    @media print {
+      :root {
+        --bg: #fff;
+        --panel: #f5f7fb;
+        --panel-2: #edf1f7;
+        --border: #cbd3e1;
+        --text: #152235;
+        --muted: #526178;
+      }
+
+      body { background: #fff; }
+      .container { width: 100%; max-width: none; }
+      .card, .table-wrap { box-shadow: none; }
+      .back-top { display: none; }
+      a { color: #1468b7; }
+      section, .card, .table-wrap, .tile, .step { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body id="top">
+  <main class="container">
+    <header>
+      <h1>AiPaper Reader C 規格與功能評估報告</h1>
+      <p class="subtitle">針對裝置規格、Android 與應用程式、Google Play Store 啟用方式，以及 AI 未登入使用範圍與限制的整理</p>
+      <div class="meta">
+        <span>範圍：<strong>VIWOODS AiPaper Reader C</strong></span>
+        <span>系統：<strong>Android 16</strong></span>
+        <span>核心結論：<strong>彩色閱讀器 + 雲端 AI + 4G 數據</strong></span>
+      </div>
+    </header>
+
+    <div class="divider"></div>
+
+    <section id="summary">
+      <h2 class="section-title"><span class="num">1</span>問題摘要</h2>
+      <div class="legend">
+        <span style="color:var(--green)"><i class="dot"></i>具備／可用</span>
+        <span style="color:var(--amber)"><i class="dot"></i>需設定／有條件</span>
+        <span style="color:var(--red)"><i class="dot"></i>不具備</span>
+        <span style="color:var(--purple)"><i class="dot"></i>官方未公布</span>
+      </div>
+      <div class="card accent-cyan">
+        <h3>使用者問題</h3>
+        <p>確認 AiPaper Reader C 的完整規格、裝置功能、Android 與第三方 App 能力、Google Play Store 註冊啟用方式，以及 AI 在登入與未登入狀態下的差異與使用上限。</p>
+      </div>
+      <div class="card accent-green">
+        <h3>分析結論</h3>
+        <p><strong>AiPaper Reader C 是 6.13 吋彩色電子紙 Android 閱讀器</strong>，具備 4G 行動數據、雙頻 Wi-Fi、Bluetooth、USB-C OTG、第三方 App 與雲端 AI。未登入 VIWOODS 帳號仍可使用基本 AI；Web Search、裝置綁定與跨裝置功能需要登入。官方沒有公布未登入 AI 的固定每日次數或 token 額度。</p>
+      </div>
+    </section>
+
+    <section id="specs">
+      <h2 class="section-title"><span class="num">2</span>主要規格</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>項目</th><th>AiPaper Reader C 規格</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>顯示器</td><td>6.13 吋 E Ink Kaleido 3 彩色電子紙</td></tr>
+            <tr><td>解析度</td><td>824 × 1648；彩色約 150 PPI，黑白文字層約 300 PPI</td></tr>
+            <tr><td>處理器</td><td>6 nm 八核心處理器</td></tr>
+            <tr><td>記憶體／儲存</td><td>4 GB RAM／128 GB 內建儲存</td></tr>
+            <tr><td>作業系統</td><td>Android 16</td></tr>
+            <tr><td>行動網路</td><td>4G LTE，以行動數據為主</td></tr>
+            <tr><td>無線連線</td><td>2.4／5 GHz Wi-Fi、Bluetooth 5.0</td></tr>
+            <tr><td>感應與照明</td><td>G-sensor 自動旋轉、冷暖色可調前光</td></tr>
+            <tr><td>輸入／介面</td><td>觸控、電源鍵、翻頁鍵、AI 鍵、內建麥克風、USB-C OTG</td></tr>
+            <tr><td>電池</td><td>2580 mAh</td></tr>
+            <tr><td>尺寸／重量</td><td>159.39 × 80.27 × 6.7 mm／約 140 g</td></tr>
+            <tr><td>觸控筆</td><td><span class="status no">不支援</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="functions">
+      <h2 class="section-title"><span class="num">3</span>功能架構與裝置能力</h2>
+      <div class="card">
+        <p>主要能力可分為四個層面：</p>
+        <div class="grid">
+          <div class="tile green">
+            <small>Layer 1</small>
+            <b>閱讀與顯示</b>
+            <p>彩色／黑白電子紙<br>四種更新模式</p>
+          </div>
+          <div class="tile cyan">
+            <small>Layer 2</small>
+            <b>Android App</b>
+            <p>第三方閱讀、新聞<br>雲端與辦公工具</p>
+          </div>
+          <div class="tile amber">
+            <small>Layer 3</small>
+            <b>連線與傳輸</b>
+            <p>4G、Wi-Fi、Bluetooth<br>USB-C、ViTransfer</p>
+          </div>
+          <div class="tile purple">
+            <small>Layer 4</small>
+            <b>雲端 AI</b>
+            <p>問答、摘要、翻譯<br>畫面分析與知識庫</p>
+          </div>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="flow">
+          使用流程：選擇閱讀內容 → 以觸控或翻頁鍵操作 → 框選／截圖交給 AI 分析 → 儲存為 AI Note 或分享匯出
+        </div>
+      </div>
+      <div class="card accent-cyan">
+        <h3>閱讀與顯示</h3>
+        <ul>
+          <li>彩色模式適合圖表、地圖、教材與漫畫；黑白模式適合純文字。</li>
+          <li>提供 Best Display、Max Speed、Grayscale、Quick Refresh 四種更新模式。</li>
+          <li>冷暖前光、亮度調整、自動旋轉、觸控操作、翻頁鍵及一鍵關閉前光。</li>
+          <li>官方原生文件格式：PDF、EPUB、MOBI、AZW3、EPUB3；圖片格式：PNG、JPG、BMP、TIFF。</li>
+        </ul>
+      </div>
+      <div class="card accent-green">
+        <h3>連線與檔案傳輸</h3>
+        <ul>
+          <li>4G LTE、2.4／5 GHz Wi-Fi、Bluetooth 5.0。</li>
+          <li>USB-C 連接電腦傳檔與 USB OTG。</li>
+          <li>Email、Google Drive、Dropbox、OneDrive、Bluetooth、Wi-Fi 與 ViTransfer 傳輸。</li>
+          <li>內建麥克風可用於 AI 語音輸入；音訊輸出以 Bluetooth 耳機為主。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="android">
+      <h2 class="section-title"><span class="num">4</span>Android 與應用程式</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>項目</th><th>狀態</th><th>說明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Android 16</td><td><span class="status ok">具備</span></td><td>採用 Android 16，可執行第三方應用程式。</td></tr>
+            <tr><td>第三方 App</td><td><span class="status ok">支援</span></td><td>可加入電子書、新聞、瀏覽器、雲端硬碟、郵件與辦公工具。</td></tr>
+            <tr><td>Google Play Store</td><td><span class="status partial">需啟用</span></td><td>通常已在系統內，部分裝置需先啟用 Google Service 並註冊 GSF Android ID。</td></tr>
+            <tr><td>高速動畫／影片／遊戲</td><td><span class="status warn">體驗受限</span></td><td>電子紙更新率較低，可能出現殘影、低幀率或介面不易辨識。</td></tr>
+            <tr><td>系統更新</td><td><span class="status ok">OTA</span></td><td>韌體及安全更新應優先透過裝置 OTA 取得。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card accent-amber">
+        <h3>相容性邊界</h3>
+        <p>「可安裝 Android App」不代表所有 App 都適合使用。實際體驗仍受 6.13 吋窄螢幕、4 GB RAM、電子紙刷新特性及 App 版面設計影響。</p>
+      </div>
+    </section>
+
+    <section id="play-store">
+      <h2 class="section-title"><span class="num">5</span>註冊並啟用 Google Play Store</h2>
+      <div class="card accent-amber">
+        <h3>啟用前提</h3>
+        <p>先確認 Wi-Fi 或 4G 可正常上網。授權頁、驗證碼與 Google 登入都需要網路。</p>
+      </div>
+      <div class="steps">
+        <div class="step"><span class="step-no">1</span><b>開啟 Play 商店設定</b><p>進入「設定」→「Play 商店／Play Store」。</p></div>
+        <div class="step"><span class="step-no">2</span><b>開啟 Google Service</b><p>啟用 Google 服務，點選「前往授權／Go to Authorize」。</p></div>
+        <div class="step"><span class="step-no">3</span><b>進入裝置註冊</b><p>依官方流程選「不使用帳號」，進入 Google 裝置註冊頁。</p></div>
+        <div class="step"><span class="step-no">4</span><b>複製 GSF Android ID</b><p>點選 Google Services Framework Android ID，讓系統複製識別碼。</p></div>
+        <div class="step"><span class="step-no">5</span><b>貼上並註冊</b><p>貼上 GSF Android ID，完成機器人驗證後按 Register。</p></div>
+        <div class="step"><span class="step-no">6</span><b>重新啟動</b><p>確認已登錄的 ID 出現，返回主畫面後重新啟動裝置。</p></div>
+        <div class="step"><span class="step-no">7</span><b>清除 Play Store 資料</b><p>長按 Google Play 圖示，執行「清除資料／Clear Data」。</p></div>
+        <div class="step"><span class="step-no">8</span><b>登入 Google</b><p>開啟 Play Store，登入 Google 帳號。</p></div>
+        <div class="step"><span class="step-no">9</span><b>安裝應用程式</b><p>搜尋、安裝並測試所需 App；確認重新開機後仍可使用。</p></div>
+      </div>
+      <div class="card accent-blue">
+        <h3>若找不到 Play Store 選單</h3>
+        <p>先安裝最新 OTA 韌體並重啟；仍無選項時，再向 VIWOODS 客服確認所在地區或韌體版本是否包含 Google 服務。不要從不明網站另裝 Play Store 或 Google 服務 APK。</p>
+      </div>
+    </section>
+
+    <section id="ai">
+      <h2 class="section-title"><span class="num">6</span>AI 功能</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>功能</th><th>說明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>AI 實體鍵</td><td>短按開啟文字提問；長按進行語音提問。Reader 系列語音可錄製最長約 60 秒。</td></tr>
+            <tr><td>多模型切換</td><td>公開資料列出 ChatGPT／GPT、Gemini、DeepSeek 等；清單可能隨伺服器與韌體調整。</td></tr>
+            <tr><td>畫面分析</td><td>可截圖或框選段落、表格、圖片與圖表，交由 AI 摘要、翻譯、解釋或回答問題。</td></tr>
+            <tr><td>閱讀工具</td><td>選取文字後可使用 AI Assistant、Translate、Dictionary 或自訂 AI Command。</td></tr>
+            <tr><td>AI 浮動視窗</td><td>閱讀時可開啟、拖曳及收合，以減少切換 App。</td></tr>
+            <tr><td>Web Search</td><td>登入 VIWOODS 帳號後可啟用，用於即時資訊與網頁來源查詢。</td></tr>
+            <tr><td>Knowledge Base</td><td>將 AI 回答與來源保存為 AI Note，依 Knowledge Book 分類、搜尋與整理。</td></tr>
+            <tr><td>分享與匯出</td><td>AI Note 可輸出 PDF、TXT、HTML，並透過 QR Code、傳輸、Bluetooth、雲端或第三方 App 分享。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card accent-cyan">
+        <h3>網路需求</h3>
+        <p>內建 AI 是雲端服務，不是裝置內的離線大型語言模型。無論是否登入，都需要可用的 Wi-Fi 或 4G 網路。</p>
+      </div>
+    </section>
+
+    <section id="login">
+      <h2 class="section-title"><span class="num">7</span>AI 不登入能否使用？</h2>
+      <div class="card accent-green">
+        <h3>結論：可以使用基本 AI</h3>
+        <p>依 VIWOODS 官方說明，即使沒有登入 VIWOODS 帳號，也可直接使用內建 AI 模型與基本閱讀 AI；帳號主要影響 Web Search、裝置綁定與跨裝置雲端功能。</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>功能</th><th>未登入狀態</th><th>備註</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>文字 AI 問答</td><td><span class="status ok">可用</span></td><td>仍需連網。</td></tr>
+            <tr><td>AI 鍵語音提問</td><td><span class="status ok">可用</span></td><td>需要麥克風與網路。</td></tr>
+            <tr><td>ChatGPT／Gemini／DeepSeek 等</td><td><span class="status ok">可用</span></td><td>實際模型清單可由伺服器調整。</td></tr>
+            <tr><td>截圖／框選分析、摘要、翻譯</td><td><span class="status ok">可用</span></td><td>需要連網。</td></tr>
+            <tr><td>本機對話紀錄／Knowledge Base</td><td><span class="status partial">基本可用</span></td><td>紀錄主要保存在裝置本機。</td></tr>
+            <tr><td>Web Search</td><td><span class="status warn">需登入</span></td><td>官方明確要求登入 VIWOODS 帳號。</td></tr>
+            <tr><td>裝置綁定、跨裝置同步</td><td><span class="status warn">需登入</span></td><td>屬帳號與雲端功能。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="limits">
+      <h2 class="section-title"><span class="num">8</span>未登入 AI 是否有使用極限？</h2>
+      <div class="card accent-amber">
+        <h3>官方未公布固定配額</h3>
+        <p>截至 2026 年 7 月 28 日，VIWOODS 公開資料沒有列出未登入使用者每天可詢問幾次、每月 token 額度或各模型的固定配額。</p>
+      </div>
+      <div class="card accent-cyan">
+        <h3>如何解讀「免登入、無額外費用」</h3>
+        <p>官方表示 AI 互動不需額外訂閱費，產品頁也宣稱「No Added Fees」。這代表目前未公布額外收費，<strong>不等於承諾永久、不限次數、不限 token，或所有模型永遠可用</strong>。</p>
+        <ul>
+          <li>服務可能依模型供應成本、伺服器負載、地區、韌體版本或異常高頻使用而暫時限流。</li>
+          <li>特定模型可能暫時不可用、被替換或降級；登入與未登入是否有不同後端配額，官方未公開。</li>
+          <li>單次語音提問最長約 60 秒；這是單次錄音限制，不是每日 AI 額度。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="missing">
+      <h2 class="section-title"><span class="num">9</span>不具備或尚未公布的功能</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>功能</th><th>狀態</th><th>說明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>觸控筆／手寫</td><td><span class="status no">不具備</span></td><td>Reader C 官方規格明確標示不支援 stylus。</td></tr>
+            <tr><td>內建喇叭</td><td><span class="status no">不具備</span></td><td>公開資料以 Bluetooth 耳機輸出音訊為主。</td></tr>
+            <tr><td>一般語音電話與 SMS</td><td><span class="status no">不應視為具備</span></td><td>4G 定位以行動數據為主，不是一般手機替代品。</td></tr>
+            <tr><td>相機</td><td><span class="status unknown">未公布</span></td><td>官方規格與產品外觀未列相機功能。</td></tr>
+            <tr><td>GPS／NFC</td><td><span class="status unknown">未公布</span></td><td>不可因採用 Android 16 而推定存在。</td></tr>
+            <tr><td>指紋／臉部辨識</td><td><span class="status unknown">未公布</span></td><td>官方未列 Reader C 生物辨識硬體。</td></tr>
+            <tr><td>防水等級</td><td><span class="status unknown">未公布</span></td><td>未見 IP 防水／防塵認證，不應當作防水裝置使用。</td></tr>
+            <tr><td>microSD 擴充</td><td><span class="status unknown">未公布</span></td><td>官方只列 128 GB 儲存與 SIM 卡托，不應假設可擴充。</td></tr>
+            <tr><td>離線大型 AI</td><td><span class="status no">不具備</span></td><td>內建 AI 需要網路連線至雲端服務。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="verdict">
+      <h2 class="section-title"><span class="num">10</span>最終判定</h2>
+      <div class="verdict">
+        <strong>AiPaper Reader C 適合需要彩色電子紙閱讀、Android App 與隨讀 AI 的使用者。</strong>
+        <p>它可以安裝第三方 App，也可依官方流程啟用 Google Play Store。未登入 VIWOODS 帳號仍可使用基本 AI，但必須連網；Web Search、裝置綁定與跨裝置功能需要登入。未登入 AI 沒有官方公布的固定次數上限，也沒有正式承諾完全無限量。4G 應視為行動數據功能，不能把本機當成具備一般電話與簡訊能力的智慧型手機。</p>
+      </div>
+    </section>
+
+    <section id="references">
+      <h2 class="section-title"><span class="num">11</span>參考資料</h2>
+      <div class="refs">
+        <ol>
+          <li><a href="https://viwoods.com/products/viwoods-aipaper-reader-colour">VIWOODS AiPaper Reader C 官方產品頁</a></li>
+          <li><a href="https://viwoods-eu.com/de/pages/aipaper-reader-c-specification">AiPaper Reader C Specification</a></li>
+          <li><a href="https://viwoods.com/blogs/ereader/aipaper-reader-c-launch">AiPaper Reader C: Kaleido 3 Color, Focused Daily Reading</a></li>
+          <li><a href="https://viwoods.com/blogs/ereader/ai-knowledge-base-workflow">AI Knowledge Base: Turn Reading Insights into Reusable Notes</a></li>
+          <li><a href="https://viwoods.com/blogs/paper-tablet/activate-google-play-store-on-viwoods">How to Activate Google Play Store on Viwoods Tablets</a></li>
+          <li><a href="https://viwoods.com/blogs/paper-tablet/viwoods-ai-enhanced-reading">AI in Viwoods Reading: Integrated, Smart, Seamless</a></li>
+          <li><a href="https://viwoods.com/pages/faq">VIWOODS FAQ</a></li>
+          <li><a href="https://www.androidauthority.com/viwoods-aipaper-reader-launch-3614515/">Android Authority: World’s first Android 16 e-reader</a></li>
+        </ol>
+      </div>
+    </section>
+
+    <footer>
+      資料整理日期：2026 年 7 月 28 日。產品韌體、雲端模型與服務政策可能更新，請以 VIWOODS 最新公告為準。
+    </footer>
+  </main>
+
+  <a class="back-top" href="#top" aria-label="回到頁首">↑</a>
+</body>
+</html>
