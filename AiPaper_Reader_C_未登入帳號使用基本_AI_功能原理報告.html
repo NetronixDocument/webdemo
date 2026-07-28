@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>AiPaper Reader C 未登入帳號使用基本 AI 功能原理報告</title>
+  <style>
+    :root {
+      --bg:#0d0f16; --panel:#181b26; --panel2:#222634; --border:#30364a;
+      --text:#f4f6fb; --muted:#9aa6bd; --blue:#55aaff; --indigo:#6685ff;
+      --cyan:#2ed8f5; --green:#39df8b; --amber:#ffc52f; --red:#ff6b72;
+      --purple:#b889ff; --shadow:0 14px 40px rgba(0,0,0,.18);
+    }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; background:var(--bg); }
+    body {
+      margin:0; color:var(--text); background:
+        radial-gradient(circle at 50% -20%,rgba(59,108,255,.08),transparent 34rem),
+        var(--bg);
+      font-family:Inter,"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+      font-size:15px; line-height:1.75;
+    }
+    a { color:var(--cyan); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+    .container { width:min(100% - 36px,900px); margin:auto; }
+    header { padding:52px 0 28px; text-align:center; }
+    h1 {
+      margin:0; color:var(--blue); font-size:clamp(25px,4.5vw,37px);
+      line-height:1.25; letter-spacing:-.03em;
+    }
+    .subtitle { max-width:760px; margin:10px auto 16px; color:var(--muted); font-size:14px; }
+    .meta { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:14px; }
+    .meta span {
+      padding:6px 14px; border:1px solid var(--border); border-radius:7px;
+      background:rgba(24,27,38,.92); color:var(--muted); font-size:13px;
+    }
+    .meta strong { color:var(--text); }
+    .divider { height:1px; margin:26px 0 44px; background:var(--border); }
+    section { margin:0 0 39px; scroll-margin-top:18px; }
+    .section-title {
+      display:flex; align-items:center; gap:10px; margin:0 0 14px; padding-left:14px;
+      border-left:3px solid var(--indigo); font-size:18px; line-height:1.5;
+    }
+    .num {
+      display:inline-grid; width:24px; height:24px; place-items:center; flex:0 0 auto;
+      border-radius:50%; background:var(--indigo); color:#fff; font-size:12px; font-weight:800;
+    }
+    .legend {
+      display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px; padding:11px 16px;
+      border:1px solid var(--border); border-radius:9px; background:var(--panel);
+      color:var(--muted); font-size:12px;
+    }
+    .legend span { display:inline-flex; align-items:center; gap:7px; }
+    .dot { width:10px; height:10px; border-radius:3px; background:currentColor; }
+    .card {
+      padding:20px 22px; border:1px solid var(--border); border-radius:10px;
+      background:linear-gradient(145deg,rgba(25,28,39,.98),rgba(23,26,36,.98));
+      box-shadow:var(--shadow);
+    }
+    .card + .card { margin-top:10px; }
+    .card h3 {
+      margin:0 0 8px; padding-left:11px; border-left:3px solid var(--accent,var(--cyan));
+      color:var(--accent,var(--cyan)); font-size:15px; line-height:1.45;
+    }
+    .card p { margin:0; color:var(--muted); }
+    .card strong { color:var(--text); }
+    .cyan { --accent:var(--cyan); } .green { --accent:var(--green); }
+    .amber { --accent:var(--amber); } .red { --accent:var(--red); }
+    .purple { --accent:var(--purple); } .blue { --accent:var(--blue); }
+    ul,ol { margin:8px 0 0; padding-left:20px; color:var(--muted); }
+    li + li { margin-top:4px; }
+    li strong { color:var(--text); }
+    .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:12px; }
+    .tile {
+      min-height:128px; padding:15px 12px; border:1px solid var(--tile,var(--border));
+      border-radius:9px; background:var(--panel2); text-align:center;
+    }
+    .tile small {
+      display:block; color:var(--muted); font-size:10px; letter-spacing:.04em;
+      text-transform:uppercase;
+    }
+    .tile b { display:block; margin:5px 0 3px; color:var(--text); font-size:14px; }
+    .tile p { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+    .tile.t-green { --tile:var(--green); } .tile.t-cyan { --tile:var(--cyan); }
+    .tile.t-amber { --tile:var(--amber); } .tile.t-purple { --tile:var(--purple); }
+    .arrow { margin:8px 0; color:var(--muted); text-align:center; font-size:20px; }
+    .flow {
+      padding:15px; border:1px solid var(--border); border-radius:9px; background:var(--panel2);
+      color:var(--text); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-size:12px; line-height:1.8;
+    }
+    .table-wrap {
+      overflow-x:auto; border:1px solid var(--border); border-radius:10px;
+      background:var(--panel); box-shadow:var(--shadow);
+    }
+    table { width:100%; min-width:700px; border-collapse:collapse; }
+    th,td {
+      padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:top;
+      text-align:left;
+    }
+    th { background:var(--panel2); color:var(--muted); font-size:12px; font-weight:700; }
+    td { color:var(--text); font-size:13px; line-height:1.55; }
+    td:last-child { color:var(--muted); }
+    tr:last-child td { border-bottom:0; }
+    .status {
+      display:inline-block; padding:2px 8px; border-radius:4px;
+      font-size:11px; font-weight:800; white-space:nowrap;
+    }
+    .status.confirmed { color:var(--green); background:rgba(57,223,139,.13); }
+    .status.inference { color:var(--amber); background:rgba(255,197,47,.14); }
+    .status.unknown { color:var(--purple); background:rgba(184,137,255,.14); }
+    .status.risk { color:var(--red); background:rgba(255,107,114,.14); }
+    .status.info { color:#8aa2ff; background:rgba(102,133,255,.14); }
+    .compare {
+      display:grid; grid-template-columns:1fr 1fr; gap:10px;
+    }
+    .compare .box {
+      padding:17px; border:1px solid var(--border); border-radius:9px; background:var(--panel2);
+    }
+    .compare .box:first-child { border-color:var(--red); }
+    .compare .box:last-child { border-color:var(--green); }
+    .compare small { color:var(--muted); text-transform:uppercase; font-size:10px; }
+    .compare b { display:block; margin:4px 0 6px; color:var(--text); }
+    .compare p { margin:0; color:var(--muted); font-size:12px; }
+    .verdict {
+      padding:22px; border:1px solid var(--green); border-radius:10px;
+      background:linear-gradient(145deg,rgba(34,62,53,.7),rgba(24,31,35,.9));
+    }
+    .verdict strong { color:var(--green); font-size:16px; }
+    .verdict p { margin:8px 0 0; color:var(--text); }
+    .refs {
+      padding:18px 20px; border:1px solid var(--border); border-radius:10px;
+      background:var(--panel); color:var(--muted); font-size:13px;
+    }
+    footer { padding:4px 0 56px; color:#738099; text-align:center; font-size:12px; }
+    .back-top {
+      position:fixed; right:20px; bottom:20px; display:grid; width:38px; height:38px;
+      place-items:center; border:1px solid var(--border); border-radius:9px;
+      background:rgba(24,27,38,.92); color:var(--blue); box-shadow:var(--shadow);
+    }
+    @media(max-width:780px) {
+      .container { width:min(100% - 24px,900px); }
+      .grid { grid-template-columns:repeat(2,1fr); }
+      .compare { grid-template-columns:1fr; }
+      .card { padding:17px; }
+      .back-top { display:none; }
+    }
+    @media(max-width:460px) {
+      .grid { grid-template-columns:1fr; }
+      .meta { display:grid; }
+    }
+    @media print {
+      :root {
+        --bg:#fff; --panel:#f5f7fb; --panel2:#edf1f7; --border:#cbd3e1;
+        --text:#152235; --muted:#526178;
+      }
+      body { background:#fff; }
+      .container { width:100%; max-width:none; }
+      .card,.table-wrap { box-shadow:none; }
+      .back-top { display:none; }
+      section,.card,.table-wrap,.tile { break-inside:avoid; }
+    }
+  </style>
+</head>
+<body id="top">
+  <main class="container">
+    <header>
+      <h1>未登入帳號也能使用基本 AI 功能<br>是如何作到的？</h1>
+      <p class="subtitle">VIWOODS AiPaper Reader C 的免登入 AI 架構、GPT 存取方式、可能的授權機制、使用上限與隱私邊界評估</p>
+      <div class="meta">
+        <span>裝置：<strong>AiPaper Reader C</strong></span>
+        <span>範圍：<strong>GPT 與內建雲端 AI</strong></span>
+        <span>判定方式：<strong>官方資料 + 技術架構推論</strong></span>
+      </div>
+    </header>
+
+    <div class="divider"></div>
+
+    <section id="summary">
+      <h2 class="section-title"><span class="num">1</span>執行摘要</h2>
+      <div class="legend">
+        <span style="color:var(--green)"><i class="dot"></i>官方已確認</span>
+        <span style="color:var(--amber)"><i class="dot"></i>合理技術推論</span>
+        <span style="color:var(--purple)"><i class="dot"></i>尚未公開</span>
+        <span style="color:var(--red)"><i class="dot"></i>風險／限制</span>
+      </div>
+      <div class="card green">
+        <h3>核心結論</h3>
+        <p><strong>使用者未登入，不代表 GPT 完全沒有驗證。</strong>比較合理的解釋是：Reader C 透過內建 AI 用戶端、裝置身分或服務權杖取得模型存取權；GPT 的授權、費用與 API 配額由 VIWOODS、合作平台或模型供應商的企業方案處理，因此終端使用者不需要 VIWOODS、ChatGPT 或 OpenAI API 帳號。</p>
+      </div>
+      <div class="card amber">
+        <h3>目前無法確認的部分</h3>
+        <p>VIWOODS 沒有公開 Reader C 實際使用的 API 網路架構、裝置憑證格式、是否經第三方 AI 聚合平台、每台裝置配額，以及未登入與登入狀態是否有不同額度。因此本報告會把確定事實與合理推論分開呈現。</p>
+      </div>
+    </section>
+
+    <section id="identity">
+      <h2 class="section-title"><span class="num">2</span>「不用登入」真正代表什麼？</h2>
+      <div class="compare">
+        <div class="box">
+          <small>常見誤解</small>
+          <b>沒有帳號，所以沒有驗證</b>
+          <p>若完全沒有服務驗證，任何人都能偽造請求並耗用模型額度，無法控制成本或濫用。</p>
+        </div>
+        <div class="box">
+          <small>較合理的實際定位</small>
+          <b>免使用者登入，但仍有裝置／服務驗證</b>
+          <p>系統可以辨識合法裝置、建立匿名工作階段並分配 AI 額度，而不用知道使用者姓名或 Email。</p>
+        </div>
+      </div>
+      <div class="card cyan">
+        <h3>三種帳號或身分層級必須分開</h3>
+        <ul>
+          <li><strong>VIWOODS 使用者帳號：</strong>用於裝置綁定、Web Search、同步與雲端功能。</li>
+          <li><strong>ChatGPT 個人帳號：</strong>用於 ChatGPT 網站與 App，不是硬體廠商整合 GPT API 的必要條件。</li>
+          <li><strong>模型服務授權：</strong>由裝置、廠商後端、企業專案或第三方平台持有；使用者通常看不到。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="flow">
+      <h2 class="section-title"><span class="num">3</span>可能的基本運作流程</h2>
+      <div class="card">
+        <div class="grid">
+          <div class="tile t-green">
+            <small>Step 1</small>
+            <b>使用者提問</b>
+            <p>AI 鍵、文字、語音<br>框選或截圖分析</p>
+          </div>
+          <div class="tile t-cyan">
+            <small>Step 2</small>
+            <b>內建 AI 用戶端</b>
+            <p>整理提示內容<br>建立匿名工作階段</p>
+          </div>
+          <div class="tile t-amber">
+            <small>Step 3</small>
+            <b>服務授權</b>
+            <p>裝置憑證、短效權杖<br>或合作平台驗證</p>
+          </div>
+          <div class="tile t-purple">
+            <small>Step 4</small>
+            <b>雲端模型</b>
+            <p>GPT、Gemini、DeepSeek<br>處理並回傳答案</p>
+          </div>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="flow">
+          使用者 → Reader C AI 介面 → 裝置／服務授權 → 雲端模型 → 回傳答案 → 對話紀錄保存在裝置
+        </div>
+      </div>
+      <div class="card red">
+        <h3>為什麼不應直接把永久 OpenAI API Key 放在裝置內？</h3>
+        <p>行動裝置中的程式與韌體可能被分析；若內嵌完整 API Key，攻擊者可能擷取金鑰並冒用額度。OpenAI 官方建議不要在瀏覽器或行動 App 中部署 API Key，而應透過安全的後端系統處理。因此 Reader C 若使用 OpenAI API，較可能採取後端代理、短效權杖、企業 SDK 或裝置憑證，而不是所有裝置共用一把永久明碼金鑰。</p>
+      </div>
+    </section>
+
+    <section id="architectures">
+      <h2 class="section-title"><span class="num">4</span>可能採用的技術架構</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>可能架構</th><th>運作方式</th><th>評估</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>VIWOODS 後端代理</td>
+              <td>裝置先向 VIWOODS 服務驗證，再由後端持有 API 憑證並呼叫 GPT。</td>
+              <td><span class="status inference">常見做法</span> 但與「資料不經 VIWOODS 伺服器」的宣稱需要進一步釐清。</td>
+            </tr>
+            <tr>
+              <td>裝置憑證＋短效權杖</td>
+              <td>出廠憑證證明裝置合法，服務只發放短時間有效的模型存取權杖。</td>
+              <td><span class="status inference">可能性高</span> 可避免保存個人帳號，也較容易限制單台裝置。</td>
+            </tr>
+            <tr>
+              <td>第三方 AI 聚合平台</td>
+              <td>合作平台統一連接 GPT、Gemini、DeepSeek，並處理模型路由、計費與限流。</td>
+              <td><span class="status inference">可能性中高</span> 符合單一介面切換多模型的產品設計。</td>
+            </tr>
+            <tr>
+              <td>模型供應商 OEM 授權</td>
+              <td>VIWOODS 與模型供應商簽訂裝置或企業授權，使用權隨硬體提供。</td>
+              <td><span class="status inference">可能</span> 但合約方式與配額沒有公開。</td>
+            </tr>
+            <tr>
+              <td>匿名試用／預設額度</td>
+              <td>每台新裝置取得一組匿名額度，達到條件後限流、等待重置或要求登入。</td>
+              <td><span class="status unknown">未證實</span> 裝置介面沒有公開固定額度不代表不存在。</td>
+            </tr>
+            <tr>
+              <td>本機與雲端混合</td>
+              <td>字典、歷史紀錄或部分文字處理在本機完成；複雜問答與摘要送到雲端。</td>
+              <td><span class="status inference">部分可能</span> GPT 回答本身仍需網路與雲端模型。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="why-free">
+      <h2 class="section-title"><span class="num">5</span>為什麼使用者暫時不需付費？</h2>
+      <div class="card green">
+        <h3>可能的商業原因</h3>
+        <ul>
+          <li><strong>成本包含在硬體售價：</strong>購機收入補貼一定期間或合理用量的 AI 成本。</li>
+          <li><strong>OEM 大量採購：</strong>企業方案的單次模型成本可能低於個人直接使用的感受。</li>
+          <li><strong>動態選擇低成本模型：</strong>簡單問題可使用較小模型，只有複雜任務才使用較昂貴模型。</li>
+          <li><strong>推廣期補貼：</strong>AI 可能作為產品差異化功能，由行銷預算暫時吸收。</li>
+          <li><strong>共享服務容量：</strong>不是每台裝置各買一份訂閱，而是大量裝置共用企業專案。</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <h3>「No Subscription Fee」不等於永久無限</h3>
+        <p>免額外訂閱只代表目前沒有向使用者另外收月費；廠商仍可透過合理使用政策、伺服器負載、模型成本、區域、韌體版本或防濫用規則調整服務。</p>
+      </div>
+    </section>
+
+    <section id="limits">
+      <h2 class="section-title"><span class="num">6</span>AI 使用上限從哪裡產生？</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>限制層</th><th>可能採用的限制</th><th>影響</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>模型供應商</td>
+              <td>RPM、RPD、TPM、TPD、模型並行量、專案月額度。</td>
+              <td>超過後可能暫時拒絕請求、回應變慢或等待重置。</td>
+            </tr>
+            <tr>
+              <td>VIWOODS／合作平台</td>
+              <td>每台裝置每日次數、每次輸入長度、最大回答 token、特定模型配額。</td>
+              <td>可能顯示服務繁忙、請稍後再試，或切換至較低成本模型。</td>
+            </tr>
+            <tr>
+              <td>匿名裝置身分</td>
+              <td>依裝置憑證、安裝 ID、序號雜湊、Android ID 或匿名 UUID 計量。</td>
+              <td>登出、清除 App 資料或更換網路未必能重置額度。</td>
+            </tr>
+            <tr>
+              <td>網路與防濫用</td>
+              <td>IP 頻率、異常大量請求、自動化行為、地區及伺服器負載。</td>
+              <td>可能暫時限流、封鎖或要求等待。</td>
+            </tr>
+            <tr>
+              <td>裝置功能</td>
+              <td>語音錄音時間、單次上下文長度、可用模型清單與韌體限制。</td>
+              <td>屬單次使用限制，不等於每日使用額度。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card cyan">
+        <h3>OpenAI API 限制不是依 Reader C 使用者帳號計算</h3>
+        <p>OpenAI 官方文件指出，API rate limit 主要設定在組織與專案層級，並依模型區分；可使用每分鐘／每日請求數與 token 數等指標。若 VIWOODS 使用 OpenAI API，實際上限首先取決於其企業組織或專案，再由 VIWOODS 或合作平台分配到裝置。</p>
+      </div>
+    </section>
+
+    <section id="known">
+      <h2 class="section-title"><span class="num">7</span>目前可以確認與不能確認的事項</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>項目</th><th>判定</th><th>說明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>未登入可以使用基本 AI</td><td><span class="status confirmed">官方確認</span></td><td>VIWOODS 表示連網後可直接使用內建模型，不需帳號或第三方 App。</td></tr>
+            <tr><td>必須連網</td><td><span class="status confirmed">可確認</span></td><td>GPT 等模型屬雲端服務，未登入不代表離線。</td></tr>
+            <tr><td>對話可保存在裝置</td><td><span class="status confirmed">官方說明</span></td><td>官方文章表示 AI 對話可在不依賴帳號同步的情況下保存在本機。</td></tr>
+            <tr><td>實際 API 供應鏈</td><td><span class="status unknown">未公開</span></td><td>無法確認是 OpenAI 直連、VIWOODS 後端、第三方聚合平台或混合架構。</td></tr>
+            <tr><td>每天可使用幾次</td><td><span class="status unknown">未公開</span></td><td>沒有公開未登入者每日問題數或每月 token 額度。</td></tr>
+            <tr><td>登入與未登入是否配額不同</td><td><span class="status unknown">未公開</span></td><td>官方沒有公布兩者的後端模型額度差異。</td></tr>
+            <tr><td>是否永久免費</td><td><span class="status risk">沒有承諾</span></td><td>無額外訂閱費不能解讀為永久、所有模型且完全不限量。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="privacy">
+      <h2 class="section-title"><span class="num">8</span>隱私與安全邊界</h2>
+      <div class="card red">
+        <h3>免登入不等於完全匿名</h3>
+        <ul>
+          <li>服務可能看見 IP 位址、裝置類型、韌體版本、匿名工作階段或裝置識別資訊。</li>
+          <li>為了計量與防濫用，系統可能以無法直接顯示姓名的裝置 ID 建立使用紀錄。</li>
+          <li>即使對話主要保存在本機，送給雲端模型的提示內容仍必須離開裝置進行推論。</li>
+          <li>「資料不經 VIWOODS 伺服器」不代表第三方模型或合作平台不會處理提示內容。</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <h3>不建議送入的內容</h3>
+        <p>在沒有完整資料流、保存期限及第三方處理政策前，不建議輸入密碼、API Key、客戶個資、未公開公司資料、醫療紀錄或其他高度敏感內容。</p>
+      </div>
+    </section>
+
+    <section id="verification">
+      <h2 class="section-title"><span class="num">9</span>若要進一步確認實際架構</h2>
+      <div class="card blue">
+        <h3>可向 VIWOODS 客服詢問</h3>
+        <ol>
+          <li>GPT 是直接連接 OpenAI，還是經第三方 AI 聚合平台？</li>
+          <li>未登入裝置以何種識別方式計算配額？</li>
+          <li>每天／每月是否有問題數或 token 上限？</li>
+          <li>登入與未登入是否有不同模型或額度？</li>
+          <li>提示內容會經過哪些伺服器、保存多久、用於哪些目的？</li>
+          <li>停止支援或更換模型時，是否會通知使用者？</li>
+        </ol>
+      </div>
+      <div class="card purple">
+        <h3>技術檢查能確認什麼</h3>
+        <p>在合法且不解密敏感內容的前提下，可透過 DNS 紀錄、網路連線目的網域、Android 系統日誌與 App 權限判斷服務可能連往何處。但因 HTTPS 會加密內容，僅看到網域通常仍不足以證明真正的模型供應商、帳單歸屬或完整資料處理鏈。</p>
+      </div>
+    </section>
+
+    <section id="verdict">
+      <h2 class="section-title"><span class="num">10</span>最終判定</h2>
+      <div class="verdict">
+        <strong>Reader C 的「免登入 AI」本質上是免除使用者帳號，而不是免除服務授權。</strong>
+        <p>最可能的模式是由合法裝置身分、短效權杖、企業 API 專案或第三方 AI 平台承擔 GPT 的驗證與計費，使用者只需連網即可呼叫。使用上限可能存在於模型供應商、VIWOODS 服務、匿名裝置 ID、網路防濫用與裝置功能等多個層級。由於 VIWOODS 尚未公布固定每日次數、token 額度及完整 API 架構，目前只能判定「一般使用可用，但不能視為永久且完全無限量」。</p>
+      </div>
+    </section>
+
+    <section id="references">
+      <h2 class="section-title"><span class="num">11</span>參考資料</h2>
+      <div class="refs">
+        <ol>
+          <li><a href="https://viwoods.com/blogs/paper-tablet/viwoods-ai-enhanced-reading">VIWOODS — AI in Viwoods Reading: Integrated, Smart, Seamless</a></li>
+          <li><a href="https://uk.viwoods.com/products/viwoods-aipaper-reader">VIWOODS Reader 產品頁 — AI、隱私與免訂閱說明</a></li>
+          <li><a href="https://viwoods.com/pages/ai">VIWOODS AI 功能頁</a></li>
+          <li><a href="https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety">OpenAI — Best Practices for API Key Safety</a></li>
+          <li><a href="https://developers.openai.com/api/docs/guides/rate-limits">OpenAI API — Rate Limits</a></li>
+        </ol>
+      </div>
+    </section>
+
+    <footer>
+      資料整理日期：2026 年 7 月 28 日。未公開架構均以「可能」或「合理推論」標示；實際服務以 VIWOODS 最新官方文件及客服回覆為準。
+    </footer>
+  </main>
+  <a class="back-top" href="#top" aria-label="回到頁首">↑</a>
+</body>
+</html>
