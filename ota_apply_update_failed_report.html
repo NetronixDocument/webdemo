@@ -1,0 +1,427 @@
+<title>OTA apply update failed 成因分析報告</title>
+<style>
+  :root {
+    --bg:#0f1117;--s1:#1a1d27;--s2:#232733;--s3:#2a2e3d;
+    --bd:#2e3345;--tx:#e2e4eb;--dim:#8b90a0;
+    --blue:#6c8cff;--blue-d:rgba(108,140,255,.12);
+    --cyan:#22d3ee;--cyan-d:rgba(34,211,238,.12);
+    --green:#4ade80;--green-d:rgba(74,222,128,.12);
+    --amber:#fbbf24;--amber-d:rgba(251,191,36,.12);
+    --red:#f87171;--red-d:rgba(248,113,113,.12);
+    --purple:#a78bfa;--purple-d:rgba(167,139,250,.12);
+    --pink:#f472b6;--pink-d:rgba(244,114,182,.12);
+    --sans:'PingFang TC','Noto Sans TC','Microsoft JhengHei','Hiragino Sans TC',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --mono:ui-monospace,'SF Mono','JetBrains Mono','Cascadia Code',Menlo,Consolas,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--sans);background:var(--bg);color:var(--tx);line-height:1.7;padding:40px 20px}
+  .c{max-width:900px;margin:0 auto}
+  .hdr{text-align:center;margin-bottom:48px;padding-bottom:28px;border-bottom:1px solid var(--bd)}
+  .hdr h1{font-size:26px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--cyan));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--blue);margin-bottom:6px;text-wrap:balance}
+  .hdr .sub{color:var(--dim);font-size:13px;text-wrap:balance}
+  .hdr .meta{display:flex;gap:12px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+  .hdr .chip{background:var(--s1);border:1px solid var(--bd);border-radius:6px;padding:4px 14px;font-size:12px;color:var(--dim)}
+  .hdr .chip b{color:var(--tx)}
+  .sec{margin-bottom:40px}
+  .sec-t{font-size:17px;font-weight:700;margin-bottom:14px;padding-left:12px;border-left:3px solid var(--blue);display:flex;align-items:center;gap:8px;text-wrap:balance}
+  .sec-t .n{background:var(--blue);color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+  .sec-t.red{border-left-color:var(--red)} .sec-t.red .n{background:var(--red)}
+  .sec-t.amber{border-left-color:var(--amber)} .sec-t.amber .n{background:var(--amber);color:#1a1d27}
+  .sec-t.cyan{border-left-color:var(--cyan)} .sec-t.cyan .n{background:var(--cyan);color:#1a1d27}
+  .sec-t.green{border-left-color:var(--green)} .sec-t.green .n{background:var(--green);color:#1a1d27}
+  .card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:18px 22px;margin-bottom:10px}
+  .card.flush{padding:0;overflow-x:auto}
+  .card h4{font-size:14px;font-weight:600;margin-bottom:6px}
+  .card p,.card li{font-size:13.5px;color:var(--dim)}
+  .card p strong,.card li strong{color:var(--tx)}
+  .card ul{padding-left:18px}
+  .card li{margin-bottom:3px}
+  .b{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:4px;letter-spacing:.3px;vertical-align:middle;white-space:nowrap}
+  .b-hi{background:var(--red-d);color:var(--red)}
+  .b-mid{background:var(--amber-d);color:var(--amber)}
+  .b-lo{background:var(--s3);color:var(--dim)}
+  .b-yes{background:var(--red-d);color:var(--red)}
+  .b-no{background:var(--green-d);color:var(--green)}
+  .b-na{background:var(--s3);color:var(--dim)}
+  .b-mod{background:var(--blue-d);color:var(--blue)}
+  .tb{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}
+  .tb th{text-align:left;padding:8px 12px;background:var(--s2);color:var(--dim);font-weight:600;border-bottom:1px solid var(--bd);white-space:nowrap}
+  .tb td{padding:9px 12px;border-bottom:1px solid var(--bd);vertical-align:top;color:var(--dim)}
+  .tb td strong{color:var(--tx);font-weight:600}
+  .tb tr:last-child td{border-bottom:none}
+  .tb .idx{font-family:var(--mono);color:var(--dim);font-variant-numeric:tabular-nums;text-align:right;width:34px}
+  .tb .hl td{background:rgba(248,113,113,.05)}
+  .mono{font-family:var(--mono);font-size:12px}
+  .arch{display:grid;gap:10px;margin:16px 0}
+  .arch-3{grid-template-columns:1fr 1fr 1fr}
+  .arch-2{grid-template-columns:1fr 1fr}
+  .arch-box{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;text-align:center}
+  .arch-box .lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .arch-box .name{font-size:13px;font-weight:600}
+  .arch-box .desc{font-size:11px;color:var(--dim);margin-top:4px;line-height:1.6}
+  .arch-box.highlight{border-color:var(--purple);box-shadow:0 0 12px rgba(167,139,250,.1)}
+  .arch-box.highlight2{border-color:var(--cyan);box-shadow:0 0 12px rgba(34,211,238,.1)}
+  .arch-arrow{text-align:center;font-size:18px;color:var(--dim);padding:4px 0}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;padding:10px 16px;background:var(--s1);border-radius:8px;border:1px solid var(--bd)}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+  .legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+  .flow{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:16px;overflow-x:auto}
+  .flow .mono{line-height:1.95;color:var(--tx);display:block;white-space:pre;font-size:12px}
+  .flow .ok{color:var(--green)} .flow .bad{color:var(--red)} .flow .cmt{color:var(--dim)}
+  .kbox{border-left:3px solid var(--amber);background:var(--amber-d);border-radius:0 8px 8px 0;padding:14px 18px;margin:14px 0}
+  .kbox p{font-size:13.5px;color:var(--tx)}
+  .note{font-size:11px;color:var(--dim);text-align:center;margin-top:24px}
+  @media(max-width:640px){.arch-3,.arch-2{grid-template-columns:1fr}body{padding:24px 14px}}
+</style>
+
+<div class="c">
+
+<div class="hdr">
+  <h1>OTA apply update failed 成因分析報告</h1>
+  <div class="sub">針對客戶機台更新時跳出「apply update failed」對話框的可能原因盤點（無法取得 log 之推論版）</div>
+  <div class="meta">
+    <div class="chip">模組：<b>packages/apps/upgrade_OTA</b></div>
+    <div class="chip">機種：<b>E70P24_android · Android 12 · Virtual A/B</b></div>
+    <div class="chip">觸發點：<b>僅 2 處</b></div>
+    <div class="chip">可能原因：<b>13 項</b></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">1</span> 問題摘要</div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> 高可能性</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div> 中可能性</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--dim)"></div> 低可能性</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> 可直接排除</div>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--red)">異常現象</h4>
+    <p>客戶機台執行 OTA 更新，進度條停在起始階段後跳出對話框，內容為英文小字 <span class="mono">apply update failed</span>，下方為「取消 / 確定」兩個按鈕，按下後直接結束更新流程。</p>
+  </div>
+
+  <div class="card">
+    <h4 style="color:var(--green)">關鍵結論</h4>
+    <p>這句話<strong>不是資源字串</strong>，是 <span class="mono">CopyPackageActivity.java:151-185</span> 依 <span class="mono">msg.arg1</span> 動態組出來的（<span class="mono">"apply update"</span> + <span class="mono">" failed"</span>），只對應唯一一個錯誤碼 <span class="mono">UPDATE_APPLY_PACKAGE_FAILED (213)</span>。</p>
+    <ul style="margin-top:8px">
+      <li>213 代表 <strong>payload 根本還沒送進 update_engine</strong> —— 失敗發生在 App 端解 zip、開檔、或呼叫 <span class="mono">applyPayload()</span> 的當下。</li>
+      <li>update_engine 真的開始寫入之後才失敗的情況，錯誤碼是 214，畫面顯示的是純 <span class="mono">update failed</span>（<strong>沒有 apply 這個字</strong>）。</li>
+      <li>因此光憑截圖上有沒有 <span class="mono">apply</span>，就能把嫌疑範圍砍掉一半。</li>
+    </ul>
+  </div>
+
+  <div class="kbox">
+    <p><strong>判讀口訣：</strong>有 <span class="mono">apply</span> → 封包 / 檔案 / update_engine 狀態問題。沒有 <span class="mono">apply</span> → 簽章、空間、分區、verity 等真正的燒錄問題。</p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">2</span> 四種失敗訊息對照</div>
+  <div class="card flush">
+    <table class="tb">
+      <tr><th>arg1</th><th>常數名稱</th><th>畫面顯示文字</th><th>實際會不會發生</th></tr>
+      <tr>
+        <td class="mono">212</td>
+        <td class="mono">UPDATE_VERIFY_PACKAGE_FAILED</td>
+        <td class="mono">verify file failed</td>
+        <td><span class="b b-na">不可能</span> <span style="font-size:12px">　<span class="mono">verifyPackage()</span> 是死碼，<span class="mono">onCreate</span> 直接送 APPLY</span></td>
+      </tr>
+      <tr class="hl">
+        <td class="mono">213</td>
+        <td class="mono">UPDATE_APPLY_PACKAGE_FAILED</td>
+        <td class="mono" style="color:var(--red)"><strong>apply update failed</strong></td>
+        <td><span class="b b-yes">本次案例</span> <span style="font-size:12px">　payload 未進入 update_engine</span></td>
+      </tr>
+      <tr>
+        <td class="mono">214</td>
+        <td class="mono">UPDATE_PROGRESS_REFRESH_FAILED</td>
+        <td class="mono">update failed</td>
+        <td><span class="b b-na">另一種</span> <span style="font-size:12px">　update_engine 跑完後回報失敗</span></td>
+      </tr>
+      <tr>
+        <td class="mono">215</td>
+        <td class="mono">UPDATE_APPLY_REBOOT_FAILED</td>
+        <td class="mono">reboot failed</td>
+        <td><span class="b b-na">不可能</span> <span style="font-size:12px">　程式中沒有任何地方送出此碼</span></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">3</span> 失敗發生的位置</div>
+  <div class="card">
+    <p style="margin-bottom:14px">整條更新路徑分成三段，<strong>213 只會發生在前兩段</strong>：</p>
+
+    <div class="arch arch-3">
+      <div class="arch-box highlight">
+        <div class="lbl">段 1 · App 開檔</div>
+        <div class="name">openFileDescriptor</div>
+        <div class="desc">用 MediaStore 的 <span class="mono">content://</span> uri<br>以 <span class="mono">"rw"</span> 模式開啟 OTA 包</div>
+      </div>
+      <div class="arch-box highlight2">
+        <div class="lbl">段 2 · App 解 zip</div>
+        <div class="name">ZipInputStream 掃描</div>
+        <div class="desc">找 <span class="mono">metadata</span> 取 payload 偏移<br>找 <span class="mono">payload_properties.txt</span> 取 headers</div>
+      </div>
+      <div class="arch-box">
+        <div class="lbl">段 3 · 燒錄</div>
+        <div class="name">update_engine</div>
+        <div class="desc">實際寫入 A/B slot<br>此段失敗顯示的是 <span class="mono">update failed</span></div>
+      </div>
+    </div>
+
+    <div class="arch-arrow">↓</div>
+
+    <div class="flow">
+      <span class="mono"><span class="cmt">// CopyPackageActivity.applyUpdate() — 213 的兩個發送點</span>
+
+pfd = openFileDescriptor(uri, "rw");        <span class="bad">← 拋 IOException  → 213</span>
+zis = new ZipInputStream(...);
+while ((ze = zis.getNextEntry()) != null) { <span class="bad">← 讀取途中 IOException → 213</span>
+    if ("META-INF/com/android/metadata")     解析 payload.bin 偏移
+    if ("payload_properties.txt")            取得 headers
+}
+if (mHeaderKeyValuePairs == null)           <span class="bad">← 找不到 → 213（不拋例外，安靜跳窗）</span>
+
+mUpdateEngine.applyPayload(afd, headers);   <span class="bad">← ServiceSpecificException → 213</span>
+                                            <span class="ok">← 訊息含 reboot + applied → 視為成功，去重開機</span>
+
+onPayloadApplicationComplete(errCode != 0)  <span class="cmt">← 這裡才是 214「update failed」</span></span>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t red"><span class="n">4</span> 可能原因 A：OTA 封包內容不符預期</div>
+  <div class="card">
+    <p>觸發條件：zip 掃不到根目錄的 <span class="mono">payload_properties.txt</span>，導致 <span class="mono">mHeaderKeyValuePairs == null</span>。</p>
+    <p style="margin-top:6px"><strong>這條路徑不會拋例外、不會 FC，安靜地跳出這個對話框 —— 嫌疑最大。</strong></p>
+  </div>
+  <div class="card flush">
+    <table class="tb">
+      <tr><th class="idx">#</th><th>原因</th><th>為什麼會變成這句話</th><th>可能性</th></tr>
+      <tr>
+        <td class="idx">1</td>
+        <td><strong>下載檔案不完整／被截斷</strong></td>
+        <td>程式只檢查 <span class="mono">File.exists()</span>，<strong>沒檢查大小或 checksum</strong>。<span class="mono">getNextEntry()</span> 讀到截斷點只是回 null，迴圈靜靜結束</td>
+        <td><span class="b b-hi">高</span></td>
+      </tr>
+      <tr>
+        <td class="idx">2</td>
+        <td><strong>儲存空間不足導致寫入截斷</strong></td>
+        <td>下載中途空間耗盡，檔案存在但內容不完整，表現與 #1 完全相同</td>
+        <td><span class="b b-hi">高</span></td>
+      </tr>
+      <tr>
+        <td class="idx">3</td>
+        <td><strong>Server 回的是 HTML 錯誤頁或轉址頁</strong></td>
+        <td>DownloadManager 照樣把回應存成檔案，<span class="mono">exists()</span> 成立但根本不是 zip</td>
+        <td><span class="b b-mid">中</span></td>
+      </tr>
+      <tr>
+        <td class="idx">4</td>
+        <td><strong>客戶自行解壓後重新壓縮</strong></td>
+        <td>比對是 <span class="mono">equals()</span> 完全相等，一旦變成 <span class="mono">update/payload_properties.txt</span> 這種頂層資料夾就找不到</td>
+        <td><span class="b b-hi">高</span></td>
+      </tr>
+      <tr>
+        <td class="idx">5</td>
+        <td><strong>放錯包</strong></td>
+        <td>非 A/B 的舊版 <span class="mono">update.zip</span>、全志 PhoenixSuit 的 img 包、或其他機種的包 —— 根本沒有 <span class="mono">payload.bin</span> / <span class="mono">payload_properties.txt</span></td>
+        <td><span class="b b-hi">高</span></td>
+      </tr>
+      <tr>
+        <td class="idx">6</td>
+        <td>用 Windows 內建壓縮工具重打包</td>
+        <td>entry 名稱使用反斜線或不同編碼，字串比對失敗，同 #4</td>
+        <td><span class="b b-lo">低</span></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t amber"><span class="n">5</span> 可能原因 B：檔案存取失敗</div>
+  <div class="card">
+    <p>觸發條件：<span class="mono">openFileDescriptor(uri, "rw")</span> 或串流讀取途中拋出 <span class="mono">IOException</span>。</p>
+  </div>
+  <div class="card flush">
+    <table class="tb">
+      <tr><th class="idx">#</th><th>原因</th><th>為什麼會變成這句話</th><th>可能性</th></tr>
+      <tr>
+        <td class="idx">7</td>
+        <td><strong>MediaStore uri 失效</strong></td>
+        <td>uri 是 <span class="mono">MediaScannerConnection.scanFile</span> 掃出來的。檔案被重新下載覆寫、或被 <span class="mono">DownloadManager.remove()</span> 刪過後，舊 row 已無效 → <span class="mono">FileNotFoundException</span></td>
+        <td><span class="b b-hi">高</span></td>
+      </tr>
+      <tr>
+        <td class="idx">8</td>
+        <td><strong>本機更新時來源是唯讀媒體</strong></td>
+        <td>App 用 <span class="mono">"rw"</span> 模式開檔（讀 OTA 包其實只需 <span class="mono">"r"</span>）。SD 卡／USB 以唯讀掛載、或檔案屬性唯讀，就會開檔失敗</td>
+        <td><span class="b b-mid">中</span></td>
+      </tr>
+      <tr>
+        <td class="idx">9</td>
+        <td>檔案位於 MediaScanner 掃不到的路徑</td>
+        <td>例如 App 私有目錄或 <span class="mono">/data</span> 底下，掃描結果無對應 MediaStore 記錄</td>
+        <td><span class="b b-lo">低</span></td>
+      </tr>
+      <tr>
+        <td class="idx">10</td>
+        <td>儲存媒體 I/O 錯誤</td>
+        <td>SD 卡壞塊、接觸不良、CRC 不符，讀到一半拋 <span class="mono">IOException</span></td>
+        <td><span class="b b-mid">中</span></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t amber"><span class="n">6</span> 可能原因 C：update_engine 狀態不對</div>
+  <div class="card">
+    <p>觸發條件：<span class="mono">applyPayload()</span> 拋出 <span class="mono">ServiceSpecificException</span>。update_engine 在 <span class="mono">ApplyPayload</span> 進入點只有以下幾個擋關（<span class="mono">update_attempter_android.cc</span>）。</p>
+  </div>
+  <div class="card flush">
+    <table class="tb">
+      <tr><th class="idx">#</th><th>update_engine 回傳的訊息</th><th>觸發情境</th><th>可能性</th></tr>
+      <tr>
+        <td class="idx">11</td>
+        <td class="mono" style="color:var(--tx)">Already processing an update,<br>cancel it first.</td>
+        <td>前一次 OTA 中斷（拔電、當機、使用者按返回離開更新畫面）後沒重開機；或使用者連按兩次；或 <span class="mono">DownloadOTAService</span> 已先觸發過一次。<strong>這是「重開機後就好了」型的客訴</strong></td>
+        <td><span class="b b-hi">高</span></td>
+      </tr>
+      <tr>
+        <td class="idx">12</td>
+        <td class="mono" style="color:var(--tx)">Passed invalid header: ...</td>
+        <td><span class="mono">payload_properties.txt</span> 被改成 CRLF 換行、或含空行／多餘空白 —— 程式用 <span class="mono">split("[\n\t ]")</span> 會切出不含 <span class="mono">=</span> 的 token</td>
+        <td><span class="b b-mid">中</span></td>
+      </tr>
+      <tr>
+        <td class="idx">13</td>
+        <td class="mono" style="color:var(--tx)">Passed repeated key: ...</td>
+        <td>同 #12，重打包過程中內容被改壞導致重複鍵</td>
+        <td><span class="b b-lo">低</span></td>
+      </tr>
+    </table>
+  </div>
+  <div class="kbox">
+    <p><strong>注意：</strong><span class="mono">An update already applied, waiting for reboot</span> <strong>不會</strong>跳這個對話框 —— 程式特意判斷訊息中同時含 <span class="mono">reboot</span> 與 <span class="mono">applied</span> 時視為成功，直接進入重開機流程。</p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t green"><span class="n">7</span> 可直接排除的方向</div>
+  <div class="card">
+    <p>因為 213 發生在 <span class="mono">applyPayload()</span> 呼叫成功<strong>之前</strong>，以下情況全部<strong>不可能</strong>是這句話的原因 —— 它們都走 <span class="mono">onPayloadApplicationComplete(errCode != 0)</span>，畫面上會是純 <span class="mono">update failed</span>：</p>
+    <ul style="margin-top:8px">
+      <li>payload 簽章不符 / <span class="mono">update-payload-key.pub.pem</span> 金鑰對不上 <span class="b b-no">排除</span></li>
+      <li>A/B slot 空間不足、super 分區 CoW 配置失敗 <span class="b b-no">排除</span></li>
+      <li>build timestamp 倒退（<span class="mono">kPayloadTimestampError</span>） <span class="b b-no">排除</span></li>
+      <li>metadata hash / <span class="mono">FILE_HASH</span> 驗證不符 <span class="b b-no">排除</span></li>
+      <li>dm-verity 寫入失敗、post-install script 失敗 <span class="b b-no">排除</span></li>
+      <li>分區清單不符（<span class="mono">ab_partitions.txt</span> 對不上） <span class="b b-no">排除</span></li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t cyan"><span class="n">8</span> 無法取得 log 時的側面判別</div>
+  <div class="card flush">
+    <table class="tb">
+      <tr><th>可請客戶回報的現象</th><th>指向</th></tr>
+      <tr>
+        <td>進度條到起始階段後<strong>幾秒內就跳窗</strong></td>
+        <td>原因 B（開檔就失敗），或 #11 update_engine 狀態</td>
+      </tr>
+      <tr>
+        <td>停在起始階段<strong>很久（數十秒～數分鐘）才跳窗</strong></td>
+        <td>原因 A —— App 必須把整包串流讀完才會發現缺少 <span class="mono">payload_properties.txt</span></td>
+      </tr>
+      <tr>
+        <td>等待時間比正常<strong>明顯短</strong>就跳窗</td>
+        <td>高度指向截斷檔（#1 / #2）</td>
+      </tr>
+      <tr>
+        <td><strong>重開機後再試就成功</strong></td>
+        <td>#11 <span class="mono">Already processing an update</span></td>
+      </tr>
+      <tr>
+        <td>永遠停在起始階段、<strong>完全不跳窗</strong></td>
+        <td>不是本案 —— 是 <span class="mono">pfd == null</span> 的靜默 return（另一個缺陷）</td>
+      </tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--cyan)">最有效的一步</h4>
+    <p>請客戶回報<strong>裝置上 OTA 檔案的實際大小</strong>，與我方 build 產出的 <span class="mono">update.zip</span> 對照。一致即可一口氣排除原因 A 的 #1～#3，把範圍縮到 4 項以內。</p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">9</span> 已驗證事項</div>
+  <div class="card">
+    <h4 style="color:var(--green)">我方 build 產出的 OTA 包本身正常</h4>
+    <p>已實際拆解 <span class="mono">out/target/product/E70P24_android/update.zip</span> 確認：</p>
+    <ul style="margin-top:6px">
+      <li><span class="mono">ota-type=AB</span>，legacy <span class="mono">META-INF/com/android/metadata</span> 有正常寫入。</li>
+      <li><span class="mono">payload.bin</span> 與 <span class="mono">payload_properties.txt</span> 皆位於 zip 根目錄，名稱正確。</li>
+      <li><span class="mono">ota-property-files</span> 與 <span class="mono">ota-streaming-property-files</span> 給的 <span class="mono">payload.bin</span> 偏移／大小完全相同 —— 程式「最後一筆勝出」的解析寫法在此碰巧不會出錯。</li>
+      <li>payload 大小未超過 <span class="mono">Integer</span> 上限，目前不會觸發溢位問題。</li>
+      <li>機台為 <span class="mono">virtual_ab=true</span> / <span class="mono">ab_update=true</span>，走 UpdateEngine 路徑正確。</li>
+    </ul>
+    <p style="margin-top:8px"><strong>結論：問題不在 build 產物，而在客戶端的檔案狀態或 update_engine 狀態。</strong></p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">10</span> 附帶發現的程式缺陷</div>
+  <div class="card">
+    <p>本次追查最大的阻礙是：<strong>App 把所有前置失敗壓成同一句話，且完全不記錄原因</strong>。以下缺陷會直接造成 FC 或卡死（而非跳窗），建議一併排入修正：</p>
+  </div>
+  <div class="card flush">
+    <table class="tb">
+      <tr><th>位置</th><th>缺陷</th><th>後果</th></tr>
+      <tr>
+        <td class="mono">catch 區塊</td>
+        <td><span class="mono">getLocalizedMessage()</span> 未判 null 就呼叫 <span class="mono">contains()</span></td>
+        <td>訊息為 null 時 NPE</td>
+      </tr>
+      <tr>
+        <td class="mono">catch 區塊</td>
+        <td>未涵蓋 <span class="mono">SecurityException</span> / <span class="mono">NumberFormatException</span> / <span class="mono">NegativeArraySizeException</span></td>
+        <td>直接 FC，客戶看到的是閃退而非錯誤訊息</td>
+      </tr>
+      <tr>
+        <td class="mono">pfd == null</td>
+        <td>直接 <span class="mono">return</span>，未送出任何失敗訊息</td>
+        <td>畫面永遠卡在起始進度</td>
+      </tr>
+      <tr>
+        <td class="mono">extractText()</td>
+        <td><span class="mono">read()</span> 回 -1 時 <span class="mono">count</span> 會變負數</td>
+        <td><span class="mono">IndexOutOfBoundsException</span></td>
+      </tr>
+      <tr>
+        <td class="mono">偏移解析</td>
+        <td>使用 <span class="mono">Integer.parseInt</span></td>
+        <td>OTA 包一旦超過 2 GB 即溢位崩潰</td>
+      </tr>
+      <tr>
+        <td class="mono">zip 掃描迴圈</td>
+        <td>找到目標後沒有 <span class="mono">break</span></td>
+        <td>需串流讀完整包才呼叫 <span class="mono">applyPayload</span>；期間使用者按返回會觸發 <span class="mono">unbind()</span></td>
+      </tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--blue)">建議的最小修正</h4>
+    <p>在兩個 213 發送點補上 <span class="mono">Log.e(TAG, ..., e)</span>，並把真實例外訊息帶進對話框。<strong>只加 log 不動邏輯</strong>，不影響現有行為，但下次客戶回報時即可一眼定位到上述 13 項中的哪一項。</p>
+  </div>
+</div>
+
+<div class="note">OTA apply update failed 成因分析報告 · upgrade_OTA · E70P24_android</div>
+
+</div>
