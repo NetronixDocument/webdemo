@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CommanderService Crash 問題解析報告</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+  :root {
+    --bg:#0f1117;--s1:#1a1d27;--s2:#232733;--s3:#2a2e3d;
+    --bd:#2e3345;--tx:#e2e4eb;--dim:#8b90a0;
+    --blue:#6c8cff;--blue-d:rgba(108,140,255,.12);
+    --cyan:#22d3ee;--cyan-d:rgba(34,211,238,.12);
+    --green:#4ade80;--green-d:rgba(74,222,128,.12);
+    --amber:#fbbf24;--amber-d:rgba(251,191,36,.12);
+    --red:#f87171;--red-d:rgba(248,113,113,.12);
+    --purple:#a78bfa;--purple-d:rgba(167,139,250,.12);
+    --pink:#f472b6;--pink-d:rgba(244,114,182,.12);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Noto Sans TC','Inter',sans-serif;background:var(--bg);color:var(--tx);line-height:1.7;padding:40px 20px}
+  .c{max-width:900px;margin:0 auto}
+  .hdr{text-align:center;margin-bottom:48px;padding-bottom:28px;border-bottom:1px solid var(--bd)}
+  .hdr h1{font-size:26px;font-weight:800;background:linear-gradient(135deg,var(--blue),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+  .hdr .sub{color:var(--dim);font-size:13px}
+  .hdr .meta{display:flex;gap:12px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+  .hdr .chip{background:var(--s1);border:1px solid var(--bd);border-radius:6px;padding:4px 14px;font-size:12px;color:var(--dim)}
+  .hdr .chip b{color:var(--tx)}
+  .sec{margin-bottom:40px}
+  .sec-t{font-size:17px;font-weight:700;margin-bottom:14px;padding-left:12px;border-left:3px solid var(--blue);display:flex;align-items:center;gap:8px}
+  .sec-t .n{background:var(--blue);color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+  .card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:18px 22px;margin-bottom:10px}
+  .card h4{font-size:14px;font-weight:600;margin-bottom:6px}
+  .card p,.card li{font-size:13.5px;color:var(--dim)}
+  .card ul,.card ol{padding-left:18px}
+  .card li{margin-bottom:3px}
+  .b{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:4px;letter-spacing:.3px;vertical-align:middle;white-space:nowrap}
+  .b-aosp{background:var(--green-d);color:var(--green)}
+  .b-app{background:var(--purple-d);color:var(--purple)}
+  .b-bt{background:var(--cyan-d);color:var(--cyan)}
+  .b-check{background:var(--amber-d);color:var(--amber)}
+  .b-info{background:var(--blue-d);color:var(--blue)}
+  .b-bad{background:var(--red-d);color:var(--red)}
+  .tb{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  .tb th{text-align:left;padding:8px 12px;background:var(--s2);color:var(--dim);font-weight:600;border-bottom:1px solid var(--bd)}
+  .tb td{padding:8px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
+  .tb tr:last-child td{border-bottom:none}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:12px}
+  .arch{display:grid;gap:10px;margin:16px 0}
+  .arch-3{grid-template-columns:1fr 1fr 1fr}
+  .arch-2{grid-template-columns:1fr 1fr}
+  .arch-box{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;text-align:center}
+  .arch-box .lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .arch-box .name{font-size:13px;font-weight:600}
+  .arch-box .desc{font-size:11px;color:var(--dim);margin-top:4px}
+  .arch-box.highlight{border-color:var(--purple);box-shadow:0 0 12px rgba(167,139,250,.1)}
+  .arch-box.highlight2{border-color:var(--cyan);box-shadow:0 0 12px rgba(34,211,238,.1)}
+  .arch-box.danger{border-color:var(--red);box-shadow:0 0 12px rgba(248,113,113,.1)}
+  .arch-arrow{text-align:center;font-size:18px;color:var(--dim);padding:4px 0}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;padding:10px 16px;background:var(--s1);border-radius:8px;border:1px solid var(--bd)}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+  .legend-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+  .code{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:14px 16px;overflow-x:auto;margin-top:10px}
+  .code pre{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.75;color:var(--tx);white-space:pre-wrap;word-break:break-word}
+  .note{font-size:11px;color:var(--dim);text-align:center;margin-top:24px}
+  strong{color:var(--tx)}
+  @media(max-width:640px){.arch-3,.arch-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="c">
+
+<div class="hdr">
+  <h1>CommanderService Crash 問題解析報告</h1>
+  <div class="sub">針對開機後 com.ari_os.commander 建立 CommanderService 時發生 NullPointerException 的分析與修正建議</div>
+  <div class="meta">
+    <div class="chip">平台：<b>MTK Android 16 AOSP</b></div>
+    <div class="chip">程序：<b>com.ari_os.commander</b></div>
+    <div class="chip">直接失敗點：<b>BluetoothNameMonitor.&lt;init&gt;()</b></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">1</span> 問題摘要</div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> 已確認失敗點</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div> 待驗證根因</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cyan)"></div> 建議排查方向</div>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--red)">▎異常現象</h4>
+    <p>系統開機後建立 <span class="mono">com.ari_os.commander.CommanderService</span>，Hilt/Dagger 在注入 <span class="mono">CommanderServer</span> 相依物件時建立 <span class="mono">BluetoothNameMonitor</span>，其建構子第 28 行對一個 <span class="mono">null</span> 物件呼叫 <span class="mono">getClass()</span>，導致主執行緒發生未捕捉的 <span class="mono">NullPointerException</span>，Service 建立失敗並使程序崩潰。</p>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--green)">▎目前可確認的結論</h4>
+    <ul>
+      <li>直接 crash 點位於 <span class="mono">BluetoothNameMonitor.&lt;init&gt;(SourceFile:28)</span>。</li>
+      <li><span class="mono">CommanderService.onCreate()</span> 只是觸發依賴注入，並非最底層故障位置。</li>
+      <li>從現有 stack trace 無法唯一判定是哪一個變數為 <span class="mono">null</span>；必須查看反編譯後第 28 行或原始碼。</li>
+      <li>最可能是藍牙相關 service、manager、adapter 或裝置名稱來源在開機早期尚未可用，程式又未做 null 防護。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">2</span> Crash 呼叫鏈</div>
+  <div class="card">
+    <p style="margin-bottom:14px">實際錯誤由 Service 啟動一路傳遞至藍牙監控元件：</p>
+    <div class="arch arch-3">
+      <div class="arch-box highlight">
+        <div class="lbl">Android Framework</div>
+        <div class="name">ActivityThread</div>
+        <div class="desc">建立 CommanderService<br>呼叫 onCreate()</div>
+      </div>
+      <div class="arch-box highlight2">
+        <div class="lbl">Dependency Injection</div>
+        <div class="name">Hilt / Dagger</div>
+        <div class="desc">建立 CommanderServer<br>注入 Service</div>
+      </div>
+      <div class="arch-box danger">
+        <div class="lbl">Direct Failure</div>
+        <div class="name">BluetoothNameMonitor</div>
+        <div class="desc">建構子第 28 行<br>null.getClass()</div>
+      </div>
+    </div>
+    <div class="arch-arrow">↓</div>
+    <div class="code"><pre>ActivityThread.handleCreateService()
+  → CommanderService.onCreate()                  SourceFile:60
+  → Hilt_CommanderService.inject()
+  → CommanderModule.providesCommanderServer()    SourceFile:120
+  → CommanderServer.&lt;init&gt;()                     SourceFile:175
+  → BluetoothNameMonitor.&lt;init&gt;()                SourceFile:28
+  → NullPointerException: null.getClass()
+  → RuntimeException: Unable to create service</pre></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">3</span> 關鍵 Log 證據</div>
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table class="tb">
+      <tr><th>層級</th><th>Log / Method</th><th>判斷</th></tr>
+      <tr>
+        <td><span class="b b-aosp">Framework</span></td>
+        <td><span class="mono">Unable to create service com.ari_os.commander.CommanderService</span></td>
+        <td>Service 在建立階段失敗，尚未正常完成 <span class="mono">onCreate()</span>。</td>
+      </tr>
+      <tr>
+        <td><span class="b b-app">Commander</span></td>
+        <td><span class="mono">CommanderService.onCreate(SourceFile:60)</span></td>
+        <td>Service 啟動後觸發 Hilt 注入流程。</td>
+      </tr>
+      <tr>
+        <td><span class="b b-info">Hilt / Dagger</span></td>
+        <td><span class="mono">providesCommanderServer(SourceFile:120)</span></td>
+        <td>DI 容器正在建立 <span class="mono">CommanderServer</span>；不是 Hilt 本身產生 null。</td>
+      </tr>
+      <tr>
+        <td><span class="b b-bt">Bluetooth component</span></td>
+        <td><span class="mono">BluetoothNameMonitor.&lt;init&gt;(SourceFile:28)</span></td>
+        <td>第一個應用程式碼錯誤點，必須優先定位第 28 行的 null 物件。</td>
+      </tr>
+      <tr>
+        <td><span class="b b-bad">Fatal</span></td>
+        <td><span class="mono">Attempt to invoke ... Object.getClass() on a null object reference</span></td>
+        <td>程式直接解參考 null，且沒有例外處理，因此主執行緒崩潰。</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">4</span> Root Cause 分析</div>
+  <div class="card">
+    <h4 style="color:var(--red)">▎直接原因：BluetoothNameMonitor 建構子缺少 null 防護</h4>
+    <p>第 28 行對 null 物件呼叫 <span class="mono">getClass()</span>。不論 null 的來源為何，程式在建構階段沒有檢查相依物件是否可用，是本次 crash 的直接原因。</p>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--amber)">▎高機率根因 1：BluetoothAdapter 或 BluetoothManager 尚未可用</h4>
+    <p>CommanderService 若於開機早期或 Direct Boot 階段啟動，藍牙 framework service 可能尚未 ready；例如 <span class="mono">getSystemService(BluetoothManager.class)</span> 或 <span class="mono">BluetoothAdapter.getDefaultAdapter()</span> 回傳 null，後續反射或型別操作便會觸發此錯誤。</p>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--amber)">▎高機率根因 2：裝置未宣告藍牙 feature，或產品裁切造成 service 缺失</h4>
+    <p>若 system image 與 vendor image 的藍牙設定不一致，或產品設定未包含完整 Bluetooth service / feature，應用程式取得的藍牙物件可能為 null。需比對可正常運作機種的 product packages、feature XML 與 framework overlay。</p>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--amber)">▎可能根因 3：RealWear / Archer 專用 API 在目前 AOSP 不存在</h4>
+    <p>此 APK 可能假設特定 OEM framework、system service 或客製 Bluetooth API 必定存在。若 MTK Android 16 映像未整合相同元件，反射取得 class 或 service 的結果可能為 null。</p>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--blue)">▎權限不是目前最像的直接原因</h4>
+    <p>若缺少 <span class="mono">BLUETOOTH_CONNECT</span> 等執行權限，常見結果通常是 <span class="mono">SecurityException</span>。本次明確為 null 解參考，因此應先查第 28 行資料來源，再確認權限。</p>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">5</span> 與其他問題的界線</div>
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table class="tb">
+      <tr><th>項目</th><th>是否為本次主因</th><th>說明</th></tr>
+      <tr>
+        <td>APK 使用 <span class="mono">PRESIGNED</span></td>
+        <td><span class="b b-info">無直接證據</span></td>
+        <td>簽章錯誤通常發生在安裝或 shared UID 驗證階段；本次 APK 已成功啟動程序並進入 Service。</td>
+      </tr>
+      <tr>
+        <td><span class="mono">sharedUserId=android.uid.system</span> 簽章不相容</td>
+        <td><span class="b b-bad">另一個問題</span></td>
+        <td>會造成 <span class="mono">INSTALL_FAILED_SHARED_USER_INCOMPATIBLE</span>，與本次執行期 NPE 不同。</td>
+      </tr>
+      <tr>
+        <td>ACS 背景啟動前景 Service 被拒絕</td>
+        <td><span class="b b-bad">另一個問題</span></td>
+        <td><span class="mono">ForegroundServiceStartNotAllowedException</span> 是 Android 背景啟動限制，與 Commander 的 BluetoothNameMonitor NPE 無關。</td>
+      </tr>
+      <tr>
+        <td>Hilt / Dagger</td>
+        <td><span class="b b-check">觸發路徑</span></td>
+        <td>Hilt 只是建構相依物件；真正的錯誤仍在 <span class="mono">BluetoothNameMonitor</span> 的應用程式碼。</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">6</span> 建議檢查項目</div>
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 1：確認裝置藍牙 framework 狀態</h4>
+    <div class="code"><pre>adb shell pm list features | grep -i bluetooth
+adb shell service check bluetooth_manager
+adb shell dumpsys bluetooth_manager | head -100
+adb shell settings get global bluetooth_on
+adb shell settings get global device_name</pre></div>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 2：確認 Commander 權限與安裝屬性</h4>
+    <div class="code"><pre>adb shell dumpsys package com.ari_os.commander | \
+  grep -i -A4 -B4 -E "bluetooth|permission|sharedUser|codePath|version"
+
+aapt dump permissions \
+  vendor/mediatek/proprietary/packages/apps/ThirdPartyApps/AriCommander/AriCommander.apk</pre></div>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 3：反編譯並定位 SourceFile:28</h4>
+    <div class="code"><pre>jadx -d /tmp/AriCommander_decompiled \
+  vendor/mediatek/proprietary/packages/apps/ThirdPartyApps/AriCommander/AriCommander.apk
+
+nl -ba /tmp/AriCommander_decompiled/sources/com/ari_os/commander/components/bluetooth/BluetoothNameMonitor.java \
+  | sed -n '1,120p'</pre></div>
+    <p style="margin-top:8px">若 R8 已改變實際行號，請搜尋 <span class="mono">getClass()</span>、<span class="mono">BluetoothManager</span>、<span class="mono">BluetoothAdapter</span>、<span class="mono">getSystemService</span>、反射及裝置名稱存取。</p>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎檢查 4：擷取乾淨的重現 log</h4>
+    <div class="code"><pre>adb logcat -c
+adb logcat -b all -v threadtime | \
+  grep -i -E "ari_os.commander|CommanderService|BluetoothNameMonitor|BluetoothManager|AndroidRuntime"</pre></div>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">7</span> 建議修正方向</div>
+  <div class="card">
+    <h4 style="color:var(--green)">▎原始碼可修改時</h4>
+    <ul>
+      <li>不要在 DI 建構子內假設 Bluetooth service 已 ready；將初始化移到明確的生命週期方法。</li>
+      <li>對 <span class="mono">BluetoothManager</span>、<span class="mono">BluetoothAdapter</span>、裝置名稱及反射回傳值做 null 檢查。</li>
+      <li>若藍牙尚未可用，註冊狀態監聽，等待 service ready 或 Adapter 進入 ON 後再初始化。</li>
+      <li>將可恢復的初始化失敗記錄為 warning，採有限次數 retry，避免主執行緒直接 crash。</li>
+    </ul>
+    <div class="code"><pre>// 示意：實際 API 請依第 28 行程式碼調整
+BluetoothManager manager = context.getSystemService(BluetoothManager.class);
+if (manager == null) {
+    Log.w(TAG, "BluetoothManager is not available; defer initialization");
+    return;
+}
+
+BluetoothAdapter adapter = manager.getAdapter();
+if (adapter == null) {
+    Log.w(TAG, "BluetoothAdapter is not available; defer initialization");
+    return;
+}
+
+// Adapter ready 後再建立 monitor，並避免對任何 nullable 值直接呼叫 getClass()</pre></div>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--amber)">▎只有預編譯 APK、無原始碼時</h4>
+    <ul>
+      <li>向 APK 供應商取得支援 Android 16、目前 MTK BSP 與該硬體平台的版本。</li>
+      <li>確認供應商要求的 OEM framework、privileged permissions、shared library、feature XML 與開機服務均已整合。</li>
+      <li>不建議只修改 AOSP framework 讓 null 物件變成非 null；若缺的是 OEM 私有介面，應補齊正式相依元件或更新 APK。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="sec">
+  <div class="sec-t"><span class="n">8</span> 驗證標準與最終結論</div>
+  <div class="card">
+    <h4 style="color:var(--cyan)">▎修正後驗證標準</h4>
+    <ul>
+      <li>開機後不再出現 <span class="mono">Unable to create service CommanderService</span>。</li>
+      <li><span class="mono">com.ari_os.commander</span> 不會持續 crash/restart。</li>
+      <li>BluetoothNameMonitor 在藍牙關閉、未 ready、無硬體或 service 重啟時仍不會崩潰。</li>
+      <li>Commander 功能可在冷開機、重新開機及藍牙開關切換後正常運作。</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--green)">▎最終結論</h4>
+    <p>目前 log 已可確認：<strong>CommanderService 的直接 crash 原因，是 BluetoothNameMonitor 建構子第 28 行對 null 物件呼叫 getClass()</strong>。最優先工作不是修改 Service 權限，而是反編譯或取得原始碼，確認第 28 行是哪一個藍牙相依物件為 null。</p>
+    <p style="margin-top:8px">建議處理順序：</p>
+    <ol style="margin-top:6px">
+      <li>先定位 <span class="mono">BluetoothNameMonitor SourceFile:28</span>。</li>
+      <li>同時確認 <span class="mono">bluetooth_manager</span>、Bluetooth feature 與 Adapter 狀態。</li>
+      <li>加入 null 防護與延後初始化機制。</li>
+      <li>若 APK 為第三方 prebuilt，取得 Android 16 / MTK 相容版本並補齊 OEM 相依元件。</li>
+    </ol>
+  </div>
+</div>
+
+<div class="note">CommanderService Crash Analysis Report · BluetoothNameMonitor NullPointerException · 2026-08-19</div>
+
+</div>
+</body>
+</html>
